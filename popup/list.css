@@ -1,61 +1,120 @@
+/* --- General Body & Container --- */
 body {
-  width: 300px;
-  font-family: sans-serif;
+  font-family: "Roboto", Arial, sans-serif;
+  width: 380px;
+  max-height: 500px; /* Max height before scrolling */
+  background-color: #f9f9f9;
+  color: #0f0f0f;
+  margin: 0;
 }
+
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* --- Header & Search Bar --- */
 .header {
+  padding: 12px 16px;
+  background-color: #ffffff;
+  border-bottom: 1px solid #e0e0e0;
+  position: sticky; /* Makes header stay at the top on scroll */
+  top: 0;
+}
+
+h3 {
+  margin: 0 0 10px 0;
+  color: #cc0000;
   text-align: center;
-  border-bottom: 1px solid #ccc;
-  padding-bottom: 5px;
+  font-size: 1.2em;
+  font-weight: 500;
 }
-.button {
+
+#search-box {
   width: 100%;
-  padding: 8px;
-  background-color: #c00;
-  color: white;
-  border: none;
-  cursor: pointer;
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 20px;
+  font-size: 14px;
+  box-sizing: border-box;
+  outline: none;
 }
-.button:hover {
-  background-color: #a00;
+
+#search-box:focus {
+  border-color: #065fd4;
+  box-shadow: 0 0 0 1px #065fd4;
 }
+
+/* --- Video List --- */
 ul {
-  list-style: none;
+  list-style-type: none;
   padding: 0;
-  margin-top: 10px;
+  margin: 0;
+  overflow-y: auto; /* Enables scrolling for the list */
+  flex-grow: 1;
 }
+
 li {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 5px;
-  border-bottom: 1px solid #eee;
+  padding: 10px 16px;
+  border-bottom: 1px solid #e0e0e0;
+  cursor: pointer;
+  transition: background-color 0.2s;
 }
-li a {
+
+li:hover {
+  background-color: #f0f0f0;
+}
+
+/* Message for empty list or no search results */
+li.empty-message {
+  justify-content: center;
+  color: #606060;
+  cursor: default;
+  padding: 20px;
+  text-align: center;
+}
+li.empty-message:hover {
+  background-color: transparent;
+}
+
+/* --- List Item Content --- */
+a {
+  color: #0f0f0f;
   text-decoration: none;
-  color: #333;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   flex-grow: 1;
   margin-right: 10px;
+  font-size: 14px;
 }
-li a:hover {
-  color: #c00;
+
+a:hover {
   text-decoration: underline;
 }
+
 .delete-btn {
-  background: #ccc;
+  background: none;
   border: none;
-  color: #333;
+  color: #606060;
+  font-size: 20px;
   cursor: pointer;
+  padding: 4px;
   border-radius: 50%;
-  width: 20px;
-  height: 20px;
-  line-height: 20px;
-  text-align: center;
+  opacity: 0; /* Hidden by default */
+  transition: opacity 0.2s, background-color 0.2s;
   flex-shrink: 0;
 }
+
+/* Show delete button when hovering over the list item */
+li:hover .delete-btn {
+  opacity: 1;
+}
+
 .delete-btn:hover {
-  background: #f44336;
-  color: white;
+  background-color: #e0e0e0;
+  color: #cc0000;
 }

@@ -5,10 +5,22 @@
   <link rel="stylesheet" href="list.css">
 </head>
 <body>
-  <h3>My Video List</h3>
-  <ul id="video-list">
-    <!-- Saved videos will be added here by JavaScript -->
-  </ul>
+
+  <div class="container">
+    <div class="header">
+      <h3>My Video List</h3>
+      <div class="search-container">
+        <!-- The search box -->
+        <input type="search" id="search-box" placeholder="Search my list...">
+      </div>
+    </div>
+    
+    <!-- The list of saved videos -->
+    <ul id="video-list">
+      <!-- Videos will be added here by JavaScript -->
+    </ul>
+  </div>
+
   <script src="list.js"></script>
 </body>
 </html>
