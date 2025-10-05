@@ -7,6 +7,7 @@
     "scripts": ["background.js"]
   },
   "icons": {
+    "48": "icons/yt-storer-logo-48.png",
     "96": "icons/yt-storer-logo-96.png"
   },
   "permissions": [
@@ -22,9 +23,16 @@
   ],
   "action": {
     "default_icon": {
+      "48": "icons/yt-storer-logo-48.png",
       "96": "icons/yt-storer-logo-96.png"
     },
     "default_title": "YT Storer",
     "default_popup": "popup/list.html"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "yt-storer@jsdu9873-duck.com",
+      "strict_min_version": "109.0"
+    }
   }
 }
