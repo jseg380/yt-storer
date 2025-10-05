@@ -1,58 +1,119 @@
-const CONTEXT_MENU_ID = "SAVE_YT_VIDEO";
+// Define IDs for our two context menu items
+const CONTEXT_MENU_ID_PAGE = "SAVE_YT_VIDEO_PAGE";
+const CONTEXT_MENU_ID_LINK = "SAVE_YT_VIDEO_LINK";
 
-// Function to save the video
-async function saveVideo(tab) {
-  // Ensure we have a tab with a valid youtube video URL
+// Central function to add a video to storage
+// This avoids duplicating the storage logic.
+async function addVideoToList(newVideo) {
+  const result = await browser.storage.local.get({ videos: [] });
+  let videos = result.videos;
+
+  const isAlreadySaved = videos.some(video => video.id === newVideo.id);
+  
+  if (!isAlreadySaved) {
+    videos.push(newVideo);
+    await browser.storage.local.set({ videos });
+    console.log("YT Storer: Video saved successfully!", newVideo);
+  } else {
+    console.log("YT Storer: Video already exists in the list.");
+  }
+}
+
+// Function to fetch a video's title from its URL
+// This is necessary when saving from a link, as we don't have the tab's title.
+async function fetchVideoTitle(url) {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const htmlText = await response.text();
+    
+    // Use a simple regex to find the content of the <title> tag.
+    const titleMatch = htmlText.match(/<title>(.*?)<\/title>/);
+    
+    if (titleMatch && titleMatch[1]) {
+      // Clean up the title (e.g., "My Awesome Video - YouTube" becomes "My Awesome Video")
+      return titleMatch[1].replace(" - YouTube", "").trim();
+    }
+  } catch (error) {
+    console.error("YT Storer: Failed to fetch video title.", error);
+  }
+  // Return a fallback title if fetching fails
+  return "Video (title not found)";
+}
+
+// Handles saving from the current page
+async function saveVideoFromPage(tab) {
   if (tab && tab.url && tab.url.includes("youtube.com/watch")) {
-    // Use the URL API to safely parse the URL and get the video ID
     const videoUrl = new URL(tab.url);
     const videoId = videoUrl.searchParams.get("v");
 
-    // If for some reason we can't get an ID, stop here
     if (!videoId || videoId.length !== 11) {
-      console.error("YT Storer: Could not extract video ID from URL:", tab.url);
       return;
     }
 
     const newVideo = {
-      url: tab.url, // The original URL, with timestamp, playlist, etc
-      cleanUrl: `https://www.youtube.com/watch?v=${videoId}`, // The clean URL
-      title: tab.title.replace(" - YouTube", ""), // The video title, cleaned up
-      id: videoId, // The unique YouTube video ID
+      url: tab.url,
+      cleanUrl: `https://www.youtube.com/watch?v=${videoId}`,
+      title: tab.title.replace(" - YouTube", "").trim(),
+      id: videoId
     };
 
-    const result = await browser.storage.local.get({ videos: [] });
-    let videos = result.videos;
-
-    // Check if this video is already saved
-    const isAlreadySaved = videos.some((video) => video.id === newVideo.id);
-
-    if (!isAlreadySaved) {
-      videos.push(newVideo);
-      await browser.storage.local.set({ videos });
-    } else {
-      // Notify user if video is already in the list
-      // For now, we just silently ignore the duplicate
-      console.log("YT Storer: Video already exists in the list.");
-    }
+    await addVideoToList(newVideo);
   }
 }
 
-// Create the context menu item when the extension is installed
+// Handles saving from a right-clicked link
+async function saveVideoFromLink(info) {
+  const linkUrl = info.linkUrl;
+  if (linkUrl && linkUrl.includes("youtube.com/watch")) {
+    const videoUrl = new URL(linkUrl);
+    const videoId = videoUrl.searchParams.get("v");
+
+    if (!videoId || videoId.length !== 11) {
+      return;
+    }
+
+    // Fetch the title since we're not on the page
+    const title = await fetchVideoTitle(linkUrl);
+
+    const newVideo = {
+      url: linkUrl, // The link URL is the original URL
+      cleanUrl: `https://www.youtube.com/watch?v=${videoId}`,
+      title: title,
+      id: videoId
+    };
+
+    await addVideoToList(newVideo);
+  }
+}
+
+// Create both context menu items on install
 browser.runtime.onInstalled.addListener(() => {
+  // 1. Menu for when you are on a YouTube page
   browser.menus.create({
-    id: CONTEXT_MENU_ID,
+    id: CONTEXT_MENU_ID_PAGE,
     title: "Store this video",
-    // Only show the menu on YouTube video pages
-    documentUrlPatterns: ["*://*.youtube.com/watch*"],
     contexts: ["page"],
+    documentUrlPatterns: ["*://*.youtube.com/watch*"]
+  });
+
+  // 2. Menu for when you right-click a link to a YouTube video
+  browser.menus.create({
+    id: CONTEXT_MENU_ID_LINK,
+    title: "Store this video link",
+    contexts: ["link"],
+    // This ensures the option only appears for links pointing to YouTube videos
+    targetUrlPatterns: ["*://*.youtube.com/watch*"]
   });
 });
 
-// Listen for a click on our context menu item
+// Listen for clicks on either menu item
 browser.menus.onClicked.addListener((info, tab) => {
-  if (info.menuItemId === CONTEXT_MENU_ID) {
-    // When clicked, call the function to save the video details from the tab
-    saveVideo(tab);
+  if (info.menuItemId === CONTEXT_MENU_ID_PAGE) {
+    saveVideoFromPage(tab);
+  } else if (info.menuItemId === CONTEXT_MENU_ID_LINK) {
+    saveVideoFromLink(info);
   }
 });

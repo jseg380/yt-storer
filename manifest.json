@@ -12,7 +12,13 @@
   "permissions": [
     "storage",
     "activeTab",
-    "menus"
+    "menus",
+    "scripting"
+  ],
+  "host_permissions": [
+    "*://*.youtube.com/*",
+    "*://youtube.com/*",
+    "*://youtu.be/*"
   ],
   "action": {
     "default_icon": {
