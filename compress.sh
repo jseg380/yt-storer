@@ -20,6 +20,7 @@ FILES_TO_PACKAGE=(
 EXCLUDE_PATTERNS=(
   # Example: Exclude a specific folder inside 'icons'.
   "icons/references/*"
+  "icons/addons-mozilla-org/*"
   
   # Example: Exclude a specific source file you don't want to ship.
   "icons/yt-storer-logo.png"
