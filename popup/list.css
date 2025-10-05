@@ -102,7 +102,7 @@ a:hover {
   color: #606060;
   font-size: 20px;
   cursor: pointer;
-  padding: 4px;
+  padding: 0 6px;
   border-radius: 50%;
   opacity: 0; /* Hidden by default */
   transition: opacity 0.2s, background-color 0.2s;
