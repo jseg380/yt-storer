@@ -1,0 +1,61 @@
+body {
+  width: 300px;
+  font-family: sans-serif;
+}
+.header {
+  text-align: center;
+  border-bottom: 1px solid #ccc;
+  padding-bottom: 5px;
+}
+.button {
+  width: 100%;
+  padding: 8px;
+  background-color: #c00;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+.button:hover {
+  background-color: #a00;
+}
+ul {
+  list-style: none;
+  padding: 0;
+  margin-top: 10px;
+}
+li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px;
+  border-bottom: 1px solid #eee;
+}
+li a {
+  text-decoration: none;
+  color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-grow: 1;
+  margin-right: 10px;
+}
+li a:hover {
+  color: #c00;
+  text-decoration: underline;
+}
+.delete-btn {
+  background: #ccc;
+  border: none;
+  color: #333;
+  cursor: pointer;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  line-height: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.delete-btn:hover {
+  background: #f44336;
+  color: white;
+}
