@@ -1,80 +1,80 @@
 /* SHARED styles for the video list component */
 ul {
-  list-style-type: none;
-  padding: 0;
-  margin: 0;
-  overflow-y: auto;
-  flex-grow: 1;
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+    overflow-y: auto;
+    flex-grow: 1;
 }
 
 li {
-  display: flex;
-  align-items: center;
-  padding: 10px 16px;
-  border-bottom: 1px solid #e0e0e0;
-  transition: background-color 0.2s;
+    display: flex;
+    align-items: center;
+    padding: 10px 16px;
+    border-bottom: 1px solid #e0e0e0;
+    transition: background-color 0.2s;
 }
 
 li:hover {
-  background-color: #f0f0f0;
+    background-color: #f0f0f0;
 }
 
 li.empty-message {
-  justify-content: center;
-  color: #606060;
-  cursor: default;
-  padding: 20px;
-  text-align: center;
+    justify-content: center;
+    color: #606060;
+    cursor: default;
+    padding: 20px;
+    text-align: center;
 }
 
 li.empty-message:hover {
-  background-color: transparent;
+    background-color: transparent;
 }
 
 a {
-  color: #0f0f0f;
-  text-decoration: none;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex-grow: 1;
-  margin-right: 10px;
-  font-size: 14px;
-  cursor: pointer;
+    color: #0f0f0f;
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-grow: 1;
+    margin-right: 10px;
+    font-size: 14px;
+    cursor: pointer;
 }
 
 a:hover {
-  text-decoration: underline;
+    text-decoration: underline;
 }
 
 .action-buttons {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
 }
 
 .list-btn {
-  background: none;
-  border: none;
-  font-size: 20px;
-  cursor: pointer;
-  padding: 0 6px;
-  border-radius: 50%;
-  transition: opacity 0.2s, background-color 0.2s, color 0.2s;
-  color: #606060;
-  opacity: 0;
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0 6px;
+    border-radius: 50%;
+    transition: opacity 0.2s, background-color 0.2s, color 0.2s;
+    color: #606060;
+    opacity: 0;
 }
 
 li:hover .list-btn {
-  opacity: 1;
+    opacity: 1;
 }
 
 .list-btn.edit-btn:hover {
-  background-color: #e0e0e0;
-  color: #065fd4;
+    background-color: #e0e0e0;
+    color: #065fd4;
 }
 
 .list-btn.delete-btn:hover {
-  background-color: #e0e0e0;
-  color: #cc0000;
+    background-color: #e0e0e0;
+    color: #cc0000;
 }

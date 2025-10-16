@@ -1,5 +1,5 @@
 // Import the shared rendering logic
-import { renderList } from '../shared/list-logic.js';
+import { renderList } from "../shared/list-logic.js";
 
 document.addEventListener("DOMContentLoaded", () => {
   const videoListElement = document.getElementById("video-list");
@@ -22,7 +22,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // When storage changes (e.g., a video is added/deleted), refresh the list
   browser.storage.onChanged.addListener(async (changes, area) => {
-    if (area === 'local' && changes.videos) {
+    if (area === "local" && changes.videos) {
       allVideos = changes.videos.newValue || [];
       updateView();
     }

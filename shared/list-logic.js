@@ -7,7 +7,7 @@ export function renderList(videoListElement, videos, searchTerm = "", onEdit) {
   const lowerCaseSearchTerm = searchTerm.toLowerCase();
 
   const filteredVideos = videos.filter((video) =>
-    video.title.toLowerCase().includes(lowerCaseSearchTerm)
+    video.title.toLowerCase().includes(lowerCaseSearchTerm),
   );
 
   filteredVideos.reverse();
@@ -49,19 +49,19 @@ export function renderList(videoListElement, videos, searchTerm = "", onEdit) {
       });
       actionButtons.appendChild(editButton);
     }
-    
+
     const deleteButton = document.createElement("button");
     deleteButton.textContent = "✖";
     deleteButton.className = "list-btn delete-btn";
     deleteButton.title = "Delete video";
     deleteButton.addEventListener("click", async (e) => {
       e.stopPropagation();
-      // Deletion logic is now a global concern, handled via storage events
+      // Deletion logic is a global concern, handled via storage events
       const result = await browser.storage.local.get({ videos: [] });
-      const updatedVideos = result.videos.filter(v => v.id !== video.id);
+      const updatedVideos = result.videos.filter((v) => v.id !== video.id);
       await browser.storage.local.set({ videos: updatedVideos });
     });
-    
+
     actionButtons.appendChild(deleteButton);
     listItem.appendChild(link);
     listItem.appendChild(actionButtons);
