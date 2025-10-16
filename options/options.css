@@ -1,0 +1,121 @@
+/* OPTIONS PAGE specific styles */
+body {
+    font-family: "Roboto", Arial, sans-serif;
+    background-color: #f9f9f9;
+    color: #0f0f0f;
+    padding: 20px;
+}
+
+h1 {
+    color: #cc0000;
+    text-align: center;
+    font-weight: 500;
+    margin-bottom: 25px;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+}
+
+.controls-header {
+    padding: 16px;
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+#search-box {
+    flex-grow: 1;
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 20px;
+    font-size: 14px;
+}
+
+.actions {
+    display: flex;
+    gap: 10px;
+}
+
+.action-btn {
+    padding: 8px 16px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: #f8f8f8;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* Styles for the edit form */
+#edit-view .header {
+    padding: 12px 16px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+#edit-view h4 {
+    margin: 0;
+    color: #cc0000;
+    font-size: 1.2em;
+    text-align: center;
+}
+
+#edit-form {
+    padding: 16px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 13px;
+    margin-bottom: 5px;
+    color: #606060;
+}
+
+.form-group input,
+.form-group textarea {
+    width: 100%;
+    padding: 8px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.form-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.form-btn.save {
+    background-color: #065fd4;
+    color: white;
+}
+
+.form-btn.cancel {
+    background-color: #f0f0f0;
+    color: #0f0f0f;
+}

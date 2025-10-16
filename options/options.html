@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>YT Storer - My List</title>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="../shared/common.css">
+    <link rel="stylesheet" href="options.css">
+</head>
+
+<body>
+
+    <h1>YT Storer Video Management</h1>
+
+    <div class="container">
+        <div id="main-view">
+            <div class="controls-header">
+                <input type="search" id="search-box" placeholder="Search my list...">
+                <div class="actions">
+                    <button id="export-btn" class="action-btn">Export List</button>
+                    <label for="import-file" class="action-btn">Import List</label>
+                    <input type="file" id="import-file" accept=".json" style="display: none;">
+                </div>
+            </div>
+            <ul id="video-list">
+                <!-- Videos will be added here -->
+            </ul>
+        </div>
+
+        <div id="edit-view" class="hidden">
+            <div class="header">
+                <h4>Edit Video</h4>
+            </div>
+            <form id="edit-form">
+                <div class="form-group">
+                    <label for="edit-title">Title</label>
+                    <textarea id="edit-title" rows="3" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="edit-url">URL (with timestamp, etc.)</label>
+                    <input type="text" id="edit-url" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-cleanUrl">Clean URL (no extras)</label>
+                    <input type="text" id="edit-cleanUrl" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-tags">Tags (comma separated)</label>
+                    <input type="text" id="edit-tags" placeholder="e.g. tutorial, music, long">
+                </div>
+                <div class="form-actions">
+                    <button type="button" id="cancel-edit-btn" class="form-btn cancel">Cancel</button>
+                    <button type="submit" id="save-edit-btn" class="form-btn save">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="options.js" type="module"></script>
+</body>
+
+</html>

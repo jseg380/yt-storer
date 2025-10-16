@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YT Storer",
-  "version": "1.0",
+  "version": "2.0",
   "description": "Store youtube videos in a custom list, locally and securely.",
   "background": {
     "scripts": ["background.js"]
@@ -27,7 +27,11 @@
       "96": "icons/yt-storer-logo-96.png"
     },
     "default_title": "YT Storer",
-    "default_popup": "popup/list.html"
+    "default_popup": "popup/popup.html"
+  },
+  "options_ui": {
+    "page": "options/options.html",
+    "open_in_tab": true
   },
   "browser_specific_settings": {
     "gecko": {
