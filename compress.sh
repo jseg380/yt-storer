@@ -12,6 +12,8 @@ FILES_TO_PACKAGE=(
   "background.js"
   "icons"
   "popup"
+  "options"
+  "shared"
 )
 
 # List of patterns to EXCLUDE from the zip file.
