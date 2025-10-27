@@ -57,6 +57,8 @@ async function saveVideoFromPage(tab) {
       url: tab.url,
       cleanUrl: `https://www.youtube.com/watch?v=${videoId}`,
       title: tab.title.replace(" - YouTube", "").trim(),
+      dateAdded: Date.now(),
+      tags: [],
       id: videoId
     };
 
@@ -82,6 +84,8 @@ async function saveVideoFromLink(info) {
       url: linkUrl, // The link URL is the original URL
       cleanUrl: `https://www.youtube.com/watch?v=${videoId}`,
       title: title,
+      dateAdded: Date.now(),
+      tags: [],
       id: videoId
     };
 

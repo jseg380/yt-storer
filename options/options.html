@@ -12,47 +12,80 @@
 
     <h1>YT Storer Video Management</h1>
 
-    <div class="container">
-        <div id="main-view">
-            <div class="controls-header">
-                <input type="search" id="search-box" placeholder="Search my list...">
-                <div class="actions">
-                    <button id="export-btn" class="action-btn">Export List</button>
-                    <label for="import-file" class="action-btn">Import List</label>
-                    <input type="file" id="import-file" accept=".json" style="display: none;">
-                </div>
-            </div>
-            <ul id="video-list">
-                <!-- Videos will be added here -->
-            </ul>
+  <div class="container">
+    <div id="main-view">
+      <div class="controls-header">
+        <input type="search" id="search-box" placeholder="Search by title or tag:tagName...">
+        <div class="sort-container">
+          <label for="sort-select">Sort by:</label>
+          <select id="sort-select">
+            <option value="dateAdded_desc" selected>Date added (Newest)</option>
+            <option value="dateAdded_asc">Date added (Oldest)</option>
+            <option value="title_asc">Title (A-Z)</option>
+            <option value="title_desc">Title (Z-A)</option>
+          </select>
         </div>
+        <div class="actions">
+          <button id="export-btn" class="action-btn">Export List</button>
+          <label for="import-file" class="action-btn">Import List</label>
+          <input type="file" id="import-file" accept=".json" style="display: none;">
+        </div>
+      </div>
+      
+      <div id="bulk-actions-bar" class="bulk-actions-bar hidden">
+        <span id="selection-count"></span>
+        <button id="bulk-add-tag-btn" class="bulk-action-btn">Add Tag</button>
+        <button id="bulk-delete-btn" class="bulk-action-btn delete">Delete</button>
+      </div>
 
-        <div id="edit-view" class="hidden">
-            <div class="header">
-                <h4>Edit Video</h4>
-            </div>
-            <form id="edit-form">
-                <div class="form-group">
-                    <label for="edit-title">Title</label>
-                    <textarea id="edit-title" rows="3" required></textarea>
-                </div>
-                <div class="form-group">
-                    <label for="edit-url">URL (with timestamp, etc.)</label>
-                    <input type="text" id="edit-url" required>
-                </div>
-                <div class="form-group">
-                    <label for="edit-cleanUrl">Clean URL (no extras)</label>
-                    <input type="text" id="edit-cleanUrl" required>
-                </div>
-                <div class="form-group">
-                    <label for="edit-tags">Tags (comma separated)</label>
-                    <input type="text" id="edit-tags" placeholder="e.g. tutorial, music, long">
-                </div>
-                <div class="form-actions">
-                    <button type="button" id="cancel-edit-btn" class="form-btn cancel">Cancel</button>
-                    <button type="submit" id="save-edit-btn" class="form-btn save">Save</button>
-                </div>
-            </form>
+      <ul id="video-list">
+        <!-- Videos will be added here -->
+      </ul>
+    </div>
+
+    <!-- Edit View -->
+    <div id="edit-view" class="hidden">
+      <div class="header">
+        <h4>Edit Video</h4>
+      </div>
+      <form id="edit-form">
+        <div class="form-group">
+          <label for="edit-title">Title</label>
+          <textarea id="edit-title" rows="3" required></textarea>
+        </div>
+        <div class="form-group">
+          <label for="edit-url">URL (with timestamp, etc.)</label>
+          <input type="text" id="edit-url" required>
+        </div>
+        <div class="form-group">
+          <label for="edit-cleanUrl">Clean URL (no extras)</label>
+          <input type="text" id="edit-cleanUrl" required>
+        </div>
+        <div class="form-group">
+          <label>Tags</label>
+          <div id="edit-tags-container" class="tags-container">
+            <!-- Tag pills will be rendered here by JS -->
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" id="cancel-edit-btn" class="form-btn cancel">Done</button>
+          <button type="submit" id="save-edit-btn" class="form-btn save">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+    <!-- Template for the reusable tag editor popover -->
+    <div id="tag-editor-popover" class="tag-editor-popover hidden">
+        <div class="tag-editor-header">
+            <span>Apply tag</span>
+            <button id="close-tag-editor-btn">&times;</button>
+        </div>
+        <div class="tag-editor-body">
+            <input type="text" id="tag-search-input" placeholder="Search or create tag...">
+            <ul id="tag-suggestions-list">
+                <!-- Tag suggestions will be rendered here -->
+            </ul>
         </div>
     </div>
 
