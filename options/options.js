@@ -244,17 +244,23 @@ document.addEventListener("DOMContentLoaded", () => {
   async function handleSaveEdit(event) {
     event.preventDefault();
     if (!currentlyEditingVideoId) return;
+
     const videoToUpdate = allVideos.find(
       (v) => v.id === currentlyEditingVideoId,
     );
+
     if (videoToUpdate) {
       videoToUpdate.title = editTitleInput.value.trim();
       videoToUpdate.url = editUrlInput.value.trim();
       videoToUpdate.cleanUrl = editCleanUrlInput.value.trim();
     }
+
+    await browser.storage.local.set({ videos: allVideos });
+
     const saveBtn = document.getElementById("save-edit-btn");
     const originalText = saveBtn.textContent;
     saveBtn.textContent = "Saved!";
+
     setTimeout(() => {
       saveBtn.textContent = originalText;
     }, 1500);
