@@ -128,23 +128,29 @@ document.addEventListener("DOMContentLoaded", () => {
       const link = document.createElement("a");
       link.href = video.url;
       link.textContent = video.title;
-      link.addEventListener("click", (e) => {
-        e.preventDefault();
-        browser.tabs.create({ url: video.url });
+
+      link.addEventListener("mousedown", (e) => {
+        e.preventDefault(); // Prevent default link behavior on all clicks
+
+        if (e.button === 1) {
+          // Middle-click
+          // Open the "clean" URL in a new background tab
+          browser.tabs.create({
+            url: video.cleanUrl,
+            // active: false, // Opens the tab without switching to it
+          });
+        } else if (e.button === 0) {
+          // Left-click
+          // Open the "raw" URL in a new foreground tab
+          browser.tabs.create({
+            url: video.url,
+          });
+        }
+        // Right-click (e.button === 2) will do nothing and just show the
+        // browser's context menu, which is standard expected behavior.
       });
 
-      // // The original edit button, now part of the title line
-      // const editButton = document.createElement("button");
-      // editButton.textContent = "✎";
-      // editButton.className = "list-btn edit-btn";
-      // editButton.title = "Edit video details";
-      // editButton.addEventListener("click", (e) => {
-      //   e.stopPropagation();
-      //   showEditView(video); // This uses the preserved function
-      // });
-
       titleDiv.appendChild(link);
-      // titleDiv.appendChild(editButton);
 
       const tagsContainer = document.createElement("div");
       tagsContainer.className = "tags-container";
