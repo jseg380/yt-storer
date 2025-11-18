@@ -55,6 +55,7 @@ h1 {
     border-radius: 4px;
     background-color: #f8f8f8;
     cursor: pointer;
+    font-family: inherit;
     font-size: 14px;
     font-weight: 500;
     white-space: nowrap;
