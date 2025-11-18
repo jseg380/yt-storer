@@ -354,12 +354,36 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function showTagEditor(videoIds, anchorElement) {
     tagEditorState = { isOpen: true, targetVideoIds: videoIds, anchorElement };
-    tagEditorPopover.classList.remove("hidden");
-    const rect = anchorElement.getBoundingClientRect();
-    tagEditorPopover.style.top = `${window.scrollY + rect.bottom + 5}px`;
-    tagEditorPopover.style.left = `${window.scrollX + rect.left}px`;
-    renderTagSuggestions();
+
+    // By clearing the input's value *before* making the popup visible and
+    // rendering suggestions, we guarantee it always opens in a clean state.
     tagSearchInput.value = "";
+
+    // First, make the popover visible so we can measure its dimensions.
+    tagEditorPopover.classList.remove("hidden");
+
+    // We must render the suggestions now (even though the list will be full)
+    // so that the popover has its proper height for the positioning calculation.
+    renderTagSuggestions();
+
+    // This logic decides whether to show the popup above or below the anchor.
+    const popupHeight = tagEditorPopover.offsetHeight;
+    const rect = anchorElement.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+
+    // Check if there's not enough space below, but there is enough space above.
+    if (spaceBelow < popupHeight && rect.top > popupHeight) {
+      // Position the popup *above* the anchor element.
+      tagEditorPopover.style.top = `${window.scrollY + rect.top - popupHeight - 5}px`;
+    } else {
+      // Default behavior: position the popup *below* the anchor element.
+      tagEditorPopover.style.top = `${window.scrollY + rect.bottom + 5}px`;
+    }
+
+    // Horizontal positioning remains the same.
+    tagEditorPopover.style.left = `${window.scrollX + rect.left}px`;
+
+    // Finally, focus the input field for immediate typing.
     tagSearchInput.focus();
   }
 
