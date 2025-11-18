@@ -10,12 +10,16 @@
 
 <body>
 
-    <h1>YT Storer Video Management</h1>
+    <div class="page-header">
+        <h1>YT Storer Video Management</h1>
+        <button id="settings-btn" class="settings-btn" title="Settings">⚙️</button>
+    </div>
 
     <div class="container">
         <div id="main-view">
             <div class="controls-header">
-                <input type="checkbox" id="select-all-checkbox" class="master-checkbox" title="Select/Deselect All Visible">
+                <input type="checkbox" id="select-all-checkbox" class="master-checkbox"
+                    title="Select/Deselect All Visible">
 
                 <div class="search-wrapper">
                     <input type="search" id="search-box" placeholder="Search by title or tag:tagName...">
@@ -30,12 +34,6 @@
                         <option value="title_asc">Title (A-Z)</option>
                         <option value="title_desc">Title (Z-A)</option>
                     </select>
-                </div>
-
-                <div class="actions">
-                    <button id="export-btn" class="action-btn">Export List</button>
-                    <label for="import-file" class="action-btn">Import List</label>
-                    <input type="file" id="import-file" accept=".json" style="display: none;">
                 </div>
             </div>
 
@@ -83,19 +81,45 @@
                 </div>
             </form>
         </div>
-    </div>
 
-    <!-- Template for the reusable tag editor popover -->
-    <div id="tag-editor-popover" class="tag-editor-popover hidden">
-        <div class="tag-editor-header">
-            <span>Apply tag</span>
-            <button id="close-tag-editor-btn">&times;</button>
+        <div id="settings-view" class="hidden">
+            <div class="settings-header">
+                <button id="back-to-list-btn" class="back-btn">&larr; Back to List</button>
+                <h2>Settings</h2>
+            </div>
+            <div class="settings-content">
+                <div class="settings-section">
+                    <h3>Data Management</h3>
+                    <div class="setting-item">
+                        <span>Export your entire video list to a JSON file.</span>
+                        <button id="export-btn" class="action-btn">Export List</button>
+                    </div>
+                    <div class="setting-item">
+                        <span>Import a list from a JSON file. This will permanently replace your current list.</span>
+                        <label for="import-file" class="action-btn">Import List</label>
+                        <input type="file" id="import-file" accept=".json" style="display: none;">
+                    </div>
+                </div>
+
+                <div class="version-info">
+                    <span>YT Storer Version:</span>
+                    <span id="version-display"></span>
+                </div>
+            </div>
         </div>
-        <div class="tag-editor-body">
-            <input type="text" id="tag-search-input" placeholder="Search or create tag...">
-            <ul id="tag-suggestions-list">
-                <!-- Tag suggestions will be rendered here -->
-            </ul>
+
+        <!-- Template for the reusable tag editor popover -->
+        <div id="tag-editor-popover" class="tag-editor-popover hidden">
+            <div class="tag-editor-header">
+                <span>Apply tag</span>
+                <button id="close-tag-editor-btn">&times;</button>
+            </div>
+            <div class="tag-editor-body">
+                <input type="text" id="tag-search-input" placeholder="Search or create tag...">
+                <ul id="tag-suggestions-list">
+                    <!-- Tag suggestions will be rendered here -->
+                </ul>
+            </div>
         </div>
     </div>
 

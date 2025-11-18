@@ -6,11 +6,139 @@ body {
     padding: 20px;
 }
 
-h1 {
+.page-header {
+    max-width: 900px;
+    margin: 0 auto 25px auto;
+    display: flex;
+    align-items: center;
+    /* Anchor for the absolute button */
+    position: relative;
+}
+
+.page-header h1 {
     color: #cc0000;
-    text-align: center;
     font-weight: 500;
-    margin-bottom: 25px;
+    margin: 0;
+    font-size: 1.8em;
+    /* Center the text within its container */
+    text-align: center;
+    /* Make the h1 element take all available space */
+    flex-grow: 1;
+}
+
+.settings-btn {
+    --emoji-offset: 2px;
+    --emoji-padding: 4px;
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    padding: var(--emoji-padding);
+    padding-bottom: calc(var(--emoji-padding) + var(--emoji-offset));
+    padding-left: calc(var(--emoji-padding) + var(--emoji-offset));
+    aspect-ratio: 1 / 1;
+    border-radius: 50%;
+    line-height: 1;
+    /* Position it relative to the header */
+    position: absolute;
+    /* Pin it to the far right */
+    right: 0;
+}
+
+.settings-btn:hover {
+    background-color: #e0e0e0;
+}
+
+.settings-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 12px 16px;
+    border-bottom: 1px solid #e0e0e0;
+    /* Anchor for the absolute button */
+    position: relative;
+}
+
+.settings-header h2 {
+    margin: 0;
+    font-weight: 500;
+    flex-grow: 1;
+    text-align: center;
+    font-size: 1.5em;
+    color: #333;
+}
+
+.back-btn {
+    background: none;
+    border: 1px solid transparent;
+    font-size: 1.1em;
+    padding: 4px 8px;
+    cursor: pointer;
+    border-radius: 4px;
+    line-height: 1;
+    /* Position it relative to the header */
+    position: absolute;
+    /* Pin it to the far left */
+    left: 10px;
+}
+
+.back-btn:hover {
+    border-color: #ccc;
+    background-color: #f0f0f0;
+}
+
+.settings-content {
+    padding: 20px;
+}
+
+.settings-section {
+    margin-bottom: 30px;
+}
+
+.settings-section h3 {
+    margin: 0 0 20px 0;
+    font-weight: 500;
+    border-bottom: 1px solid #e0e0e0;
+    padding-bottom: 10px;
+    font-size: 1.3em;
+}
+
+.setting-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    gap: 20px;
+}
+
+.setting-item span {
+    font-size: 16px;
+    color: #333;
+    flex-grow: 1;
+    line-height: 1.4;
+}
+
+.setting-item .action-btn {
+    padding: 8px 16px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: #f8f8f8;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.setting-item .action-btn:hover {
+    background-color: #e0e0e0;
+}
+
+.version-info {
+    margin-top: 40px;
+    text-align: right;
+    font-size: 14px;
+    color: #555;
 }
 
 .container {
@@ -29,15 +157,15 @@ h1 {
     border-bottom: 1px solid #e0e0e0;
     position: sticky;
     top: 0;
-    background-color: #ffffff;
     /* Must have a background to hide content scrolling underneath */
-    z-index: 10;
+    background-color: #ffffff;
     /* Ensure it stays on top of the list content */
+    z-index: 10;
 }
 
 .search-wrapper {
-    position: relative;
     /* Anchor for the clear button */
+    position: relative;
     display: flex;
     align-items: center;
     flex-grow: 1;
@@ -45,24 +173,16 @@ h1 {
 
 .master-checkbox,
 .selection-checkbox {
-    transform: scale(1.4);
     /* Make checkboxes bigger and easier to click */
+    transform: scale(1.4);
     cursor: pointer;
     margin: 0 5px;
 }
 
-/* #search-box { */
-/*     flex-grow: 1; */
-/*     padding: 8px 12px; */
-/*     border: 1px solid #ccc; */
-/*     border-radius: 20px; */
-/*     font-size: 14px; */
-/* } */
-
 #search-box {
     flex-grow: 1;
-    padding: 8px 30px 8px 12px;
     /* Make space for the clear button inside the input */
+    padding: 8px 30px 8px 12px;
     border: 1px solid #ccc;
     border-radius: 20px;
     font-size: 14px;
@@ -91,23 +211,6 @@ h1 {
     align-items: center;
     gap: 8px;
     font-size: 14px;
-}
-
-.actions {
-    display: flex;
-    gap: 10px;
-}
-
-.action-btn {
-    padding: 8px 16px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    background-color: #f8f8f8;
-    cursor: pointer;
-    font-family: inherit;
-    font-size: 14px;
-    font-weight: 500;
-    white-space: nowrap;
 }
 
 .hidden {
@@ -153,11 +256,11 @@ h1 {
 /* Styles for list items (overriding shared/common.css) */
 li {
     padding: 8px 12px !important;
-    display: flex !important;
     /* CHANGED: Use Flexbox for layout */
+    display: flex !important;
     gap: 12px;
-    align-items: flex-start;
     /* Align items to the top */
+    align-items: flex-start;
 }
 
 li.selected {

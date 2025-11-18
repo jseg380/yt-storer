@@ -2,6 +2,10 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- DOM Element References (Fused from both files) ---
   const mainView = document.getElementById("main-view");
   const editView = document.getElementById("edit-view");
+  const settingsView = document.getElementById("settings-view");
+  const settingsBtn = document.getElementById("settings-btn");
+  const backToListBtn = document.getElementById("back-to-list-btn");
+  const versionDisplay = document.getElementById("version-display");
   const videoListElement = document.getElementById("video-list");
   const searchBox = document.getElementById("search-box");
   const sortSelect = document.getElementById("sort-select");
@@ -42,6 +46,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // ===================================================================
   // MIGRATION: Ensure all existing videos have the new data fields.
   // ===================================================================
+
   async function migrateData(videos) {
     let needsUpdate = false;
     const updatedVideos = videos.map((video) => {
@@ -69,6 +74,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // ===================================================================
   // MAIN RENDER FUNCTION (The new, powerful version)
   // ===================================================================
+
   function render() {
     videoListElement.innerHTML = "";
 
@@ -213,6 +219,22 @@ document.addEventListener("DOMContentLoaded", () => {
   // ===================================================================
   // VIEW SWITCHING
   // ===================================================================
+
+  function showMainView() {
+    currentlyEditingVideoId = null;
+    editForm.reset();
+    editView.classList.add("hidden");
+    settingsView.classList.add("hidden");
+    mainView.classList.remove("hidden");
+    render();
+  }
+
+  function showSettingsView() {
+    mainView.classList.add("hidden");
+    editView.classList.add("hidden");
+    settingsView.classList.remove("hidden");
+  }
+
   function showEditView(video) {
     currentlyEditingVideoId = video.id;
     // Populate text fields
@@ -235,15 +257,8 @@ document.addEventListener("DOMContentLoaded", () => {
     editTagsContainer.appendChild(addTagBtn);
 
     mainView.classList.add("hidden");
+    settingsView.classList.add("hidden");
     editView.classList.remove("hidden");
-  }
-
-  function showMainView() {
-    currentlyEditingVideoId = null;
-    editForm.reset();
-    editView.classList.add("hidden");
-    mainView.classList.remove("hidden");
-    render();
   }
 
   // ===================================================================
@@ -567,12 +582,17 @@ document.addEventListener("DOMContentLoaded", () => {
   // ===================================================================
   // INITIALIZATION & EVENT LISTENERS
   // ===================================================================
+
   async function init() {
     const result = await browser.storage.local.get({ videos: [] });
     const migratedVideos = await migrateData(result.videos);
     allVideos = migratedVideos;
     allTags.clear();
     allVideos.forEach((video) => video.tags.forEach((tag) => allTags.add(tag)));
+
+    const manifest = browser.runtime.getManifest();
+    versionDisplay.textContent = manifest.version;
+
     render();
   }
 
@@ -669,6 +689,9 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   deselectAllBtn.addEventListener("click", handleDeselectAll);
   invertSelectionBtn.addEventListener("click", handleInvertSelection);
+
+  settingsBtn.addEventListener("click", showSettingsView);
+  backToListBtn.addEventListener("click", showMainView);
 
   init();
 });
