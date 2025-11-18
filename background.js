@@ -19,6 +19,14 @@ async function addVideoToList(newVideo) {
   }
 }
 
+// Safely decodes HTML entities (e.g., &#39; -> ', &amp; -> &)
+function decodeHtmlEntities(text) {
+  // A temporary element is created in memory, but never added to the page.
+  const textArea = document.createElement('textarea');
+  textArea.innerHTML = text;
+  return textArea.value;
+}
+
 // Function to fetch a video's title from its URL
 // This is necessary when saving from a link, as we don't have the tab's title.
 async function fetchVideoTitle(url) {
@@ -34,7 +42,9 @@ async function fetchVideoTitle(url) {
     
     if (titleMatch && titleMatch[1]) {
       // Clean up the title (e.g., "My Awesome Video - YouTube" becomes "My Awesome Video")
-      return titleMatch[1].replace(" - YouTube", "").trim();
+      const encodedTitle = titleMatch[1].replace(" - YouTube", "").trim();
+      
+      return decodeHtmlEntities(encodedTitle);
     }
   } catch (error) {
     console.error("YT Storer: Failed to fetch video title.", error);
@@ -53,10 +63,13 @@ async function saveVideoFromPage(tab) {
       return;
     }
 
+    const encodedTitle = tab.title.replace(" - YouTube", "").trim();
+    const decodedTitle = decodeHtmlEntities(encodedTitle);
+
     const newVideo = {
       url: tab.url,
       cleanUrl: `https://www.youtube.com/watch?v=${videoId}`,
-      title: tab.title.replace(" - YouTube", "").trim(),
+      title: decodedTitle,
       dateAdded: Date.now(),
       tags: [],
       id: videoId
