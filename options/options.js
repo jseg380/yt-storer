@@ -11,6 +11,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const selectionCountSpan = document.getElementById("selection-count");
   const bulkAddTagBtn = document.getElementById("bulk-add-tag-btn");
   const bulkDeleteBtn = document.getElementById("bulk-delete-btn");
+  const selectAllCheckbox = document.getElementById("select-all-checkbox");
+  const deselectAllBtn = document.getElementById("deselect-all-btn");
+  const invertSelectionBtn = document.getElementById("invert-selection-btn");
   const tagEditorPopover = document.getElementById("tag-editor-popover");
   const closeTagEditorBtn = document.getElementById("close-tag-editor-btn");
   const tagSearchInput = document.getElementById("tag-search-input");
@@ -350,6 +353,25 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
       bulkActionsBar.classList.add("hidden");
     }
+
+    const visibleIds = getVisibleVideoIds();
+    const allVisibleSelected =
+      visibleIds.length > 0 &&
+      visibleIds.every((id) => selectedVideoIds.has(id));
+    const someVisibleSelected = visibleIds.some((id) =>
+      selectedVideoIds.has(id),
+    );
+
+    if (allVisibleSelected) {
+      selectAllCheckbox.checked = true;
+      selectAllCheckbox.indeterminate = false;
+    } else if (someVisibleSelected) {
+      selectAllCheckbox.checked = false;
+      selectAllCheckbox.indeterminate = true; // The "mixed" state
+    } else {
+      selectAllCheckbox.checked = false;
+      selectAllCheckbox.indeterminate = false;
+    }
   }
 
   function showTagEditor(videoIds, anchorElement) {
@@ -483,6 +505,59 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ===================================================================
+  // MULTI-SELECTION HANDLING
+  // ===================================================================
+
+  function getVisibleVideoIds() {
+    // This helper function is crucial. It gets the IDs of only the videos
+    // that are currently visible after filtering and searching.
+    const searchTerm = searchBox.value.toLowerCase();
+    return allVideos
+      .filter((video) => {
+        if (searchTerm.startsWith("tag:")) {
+          const tagName = searchTerm.substring(4).trim();
+          return video.tags.includes(tagName);
+        } else if (searchTerm) {
+          return video.title.toLowerCase().includes(searchTerm);
+        }
+        return true; // No search term, so it's visible
+      })
+      .map((video) => video.id);
+  }
+
+  function handleSelectAll(shouldSelect) {
+    const visibleIds = getVisibleVideoIds();
+    if (shouldSelect) {
+      // Add all visible IDs to the selection
+      visibleIds.forEach((id) => selectedVideoIds.add(id));
+    } else {
+      // Remove all visible IDs from the selection
+      visibleIds.forEach((id) => selectedVideoIds.delete(id));
+    }
+    render();
+    updateBulkActionsBar();
+  }
+
+  function handleDeselectAll() {
+    selectedVideoIds.clear();
+    render();
+    updateBulkActionsBar();
+  }
+
+  function handleInvertSelection() {
+    const visibleIds = getVisibleVideoIds();
+    visibleIds.forEach((id) => {
+      if (selectedVideoIds.has(id)) {
+        selectedVideoIds.delete(id);
+      } else {
+        selectedVideoIds.add(id);
+      }
+    });
+    render();
+    updateBulkActionsBar();
+  }
+
+  // ===================================================================
   // INITIALIZATION & EVENT LISTENERS
   // ===================================================================
   async function init() {
@@ -564,6 +639,12 @@ document.addEventListener("DOMContentLoaded", () => {
   editForm.addEventListener("submit", handleSaveEdit);
 
   cancelEditBtn.addEventListener("click", showMainView);
+
+  selectAllCheckbox.addEventListener("change", (e) => {
+    handleSelectAll(e.target.checked);
+  });
+  deselectAllBtn.addEventListener("click", handleDeselectAll);
+  invertSelectionBtn.addEventListener("click", handleInvertSelection);
 
   init();
 });
