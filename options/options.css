@@ -27,21 +27,63 @@ h1 {
     gap: 20px;
     align-items: center;
     border-bottom: 1px solid #e0e0e0;
+    position: sticky;
+    top: 0;
+    background-color: #ffffff;
+    /* Must have a background to hide content scrolling underneath */
+    z-index: 10;
+    /* Ensure it stays on top of the list content */
 }
 
-.master-checkbox, .selection-checkbox {
-  /* FIX: Make checkboxes bigger and easier to click */
-  transform: scale(1.4);
-  cursor: pointer;
-  margin: 0 5px; /* Add some space around them */
+.search-wrapper {
+    position: relative;
+    /* Anchor for the clear button */
+    display: flex;
+    align-items: center;
+    flex-grow: 1;
 }
+
+.master-checkbox,
+.selection-checkbox {
+    transform: scale(1.4);
+    /* Make checkboxes bigger and easier to click */
+    cursor: pointer;
+    margin: 0 5px;
+}
+
+/* #search-box { */
+/*     flex-grow: 1; */
+/*     padding: 8px 12px; */
+/*     border: 1px solid #ccc; */
+/*     border-radius: 20px; */
+/*     font-size: 14px; */
+/* } */
 
 #search-box {
     flex-grow: 1;
-    padding: 8px 12px;
+    padding: 8px 30px 8px 12px;
+    /* Make space for the clear button inside the input */
     border: 1px solid #ccc;
     border-radius: 20px;
     font-size: 14px;
+    box-sizing: border-box;
+}
+
+.clear-search-btn {
+    position: absolute;
+    right: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    font-size: 20px;
+    color: #888;
+    cursor: pointer;
+    padding: 0 5px;
+}
+
+.clear-search-btn:hover {
+    color: #000;
 }
 
 .sort-container {
@@ -83,10 +125,10 @@ h1 {
 }
 
 .divider {
-  width: 1px;
-  height: 20px;
-  background-color: #b0c9f1;
-  margin: 0 5px;
+    width: 1px;
+    height: 20px;
+    background-color: #b0c9f1;
+    margin: 0 5px;
 }
 
 #selection-count {

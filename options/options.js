@@ -14,6 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const selectAllCheckbox = document.getElementById("select-all-checkbox");
   const deselectAllBtn = document.getElementById("deselect-all-btn");
   const invertSelectionBtn = document.getElementById("invert-selection-btn");
+  const clearSearchBtn = document.getElementById("clear-search-btn");
   const tagEditorPopover = document.getElementById("tag-editor-popover");
   const closeTagEditorBtn = document.getElementById("close-tag-editor-btn");
   const tagSearchInput = document.getElementById("tag-search-input");
@@ -603,6 +604,23 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   searchBox.addEventListener("input", render);
+
+  searchBox.addEventListener("input", () => {
+    // Show or hide the clear button based on whether the input has text
+    if (searchBox.value) {
+      clearSearchBtn.classList.remove("hidden");
+    } else {
+      clearSearchBtn.classList.add("hidden");
+    }
+    render(); // Call the existing render function
+  });
+
+  clearSearchBtn.addEventListener("click", () => {
+    searchBox.value = ""; // Clear the input
+    clearSearchBtn.classList.add("hidden"); // Hide the button
+    searchBox.focus(); // Return focus to the search box
+    render(); // Re-render the list
+  });
 
   sortSelect.addEventListener("change", (e) => {
     const [field, direction] = e.target.value.split("_");

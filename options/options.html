@@ -17,7 +17,10 @@
             <div class="controls-header">
                 <input type="checkbox" id="select-all-checkbox" class="master-checkbox" title="Select/Deselect All Visible">
 
-                <input type="search" id="search-box" placeholder="Search by title or tag:tagName...">
+                <div class="search-wrapper">
+                    <input type="search" id="search-box" placeholder="Search by title or tag:tagName...">
+                    <button id="clear-search-btn" class="clear-search-btn hidden" title="Clear search">&times;</button>
+                </div>
 
                 <div class="sort-container">
                     <label for="sort-select">Sort by:</label>
