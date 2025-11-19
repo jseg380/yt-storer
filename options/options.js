@@ -53,6 +53,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const tagFilterSuggestionsList = document.getElementById(
     "tag-filter-suggestions-list",
   );
+  const randomVideoBtn = document.getElementById("random-video-btn");
 
   // --- Central Application State ---
   const appState = {
@@ -605,6 +606,21 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  function handleRandomVideoClick() {
+    const visibleVideos = getFilteredAndSortedVideos();
+
+    if (visibleVideos.length === 0) {
+      // You could optionally add a subtle notification here, but for now, just do nothing.
+      return;
+    }
+
+    const randomIndex = Math.floor(Math.random() * visibleVideos.length);
+    const randomVideo = visibleVideos[randomIndex];
+
+    // Open the raw URL (with timestamp, etc.) in a new active tab.
+    browser.tabs.create({ url: randomVideo.url });
+  }
+
   browser.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && changes.videos) {
       handleStateUpdate(changes.videos.newValue || []);
@@ -771,6 +787,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   paginationEnabledCheckbox.addEventListener("change", handleSettingsChange);
   itemsPerPageInput.addEventListener("change", handleSettingsChange);
+
+  randomVideoBtn.addEventListener("click", handleRandomVideoClick);
 
   // ===================================================================
   // INITIALIZATION

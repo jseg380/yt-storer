@@ -169,6 +169,26 @@ body {
     align-items: center;
 }
 
+.icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #f8f8f8;
+    border: 1px solid #ccc;
+    border-radius: 50%; /* Make it circular */
+    cursor: pointer;
+    padding: 8px; /* Adjust padding for size */
+    aspect-ratio: 1 / 1; /* Ensure it's a perfect circle */
+}
+
+.icon-btn svg {
+    fill: #606060;
+}
+
+.icon-btn:hover {
+    background-color: #e0e0e0;
+}
+
 .toggle-filter-btn {
     display: flex;
     align-items: center;
