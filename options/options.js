@@ -40,6 +40,19 @@ document.addEventListener("DOMContentLoaded", () => {
     "pagination-enabled-checkbox",
   );
   const itemsPerPageInput = document.getElementById("items-per-page-input");
+  const toggleFilterBtn = document.getElementById("toggle-filter-btn");
+  const filterPanel = document.getElementById("filter-panel");
+  const selectedFilterTagsContainer = document.getElementById(
+    "selected-filter-tags",
+  );
+  const tagFilterInput = document.getElementById("tag-filter-input");
+  const notOperatorToggle = document.getElementById("not-operator-toggle");
+  const tagFilterSuggestionsPopover = document.getElementById(
+    "tag-filter-suggestions-popover",
+  );
+  const tagFilterSuggestionsList = document.getElementById(
+    "tag-filter-suggestions-list",
+  );
 
   // --- Central Application State ---
   const appState = {
@@ -48,6 +61,8 @@ document.addEventListener("DOMContentLoaded", () => {
     selectedVideoIds: new Set(),
     searchTerm: "",
     sort: { field: "dateAdded", direction: "desc" },
+    filterTags: new Set(),
+    excludeTags: new Set(),
     currentPage: 1,
     settings: {},
     currentlyEditingVideoId: null,
@@ -111,6 +126,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const paginatedList = getPaginatedVideos(fullFilteredList);
 
     renderVideoList(paginatedList);
+    renderFilterTags();
     renderBulkActionsBar(fullFilteredList);
     renderPaginationControls(fullFilteredList);
   }
@@ -119,10 +135,24 @@ document.addEventListener("DOMContentLoaded", () => {
     let videos = [...appState.allVideos];
     const term = appState.searchTerm;
 
-    if (term.toLowerCase().startsWith("tag:")) {
-      const tagName = term.substring(4).trim();
-      videos = videos.filter((v) => v.tags.includes(tagName));
-    } else if (term) {
+    // 1. Filter by included tags (AND logic)
+    if (appState.filterTags.size > 0) {
+      const filterTagsArray = [...appState.filterTags];
+      videos = videos.filter((video) =>
+        filterTagsArray.every((tag) => video.tags.includes(tag)),
+      );
+    }
+
+    // 2. Filter by excluded tags (NOT logic)
+    if (appState.excludeTags.size > 0) {
+      const excludeTagsArray = [...appState.excludeTags];
+      videos = videos.filter(
+        (video) => !excludeTagsArray.some((tag) => video.tags.includes(tag)),
+      );
+    }
+
+    // 3. Filter by title (fuzzy search)
+    if (term) {
       const termLower = term.toLowerCase();
       let primaryResults = videos.filter((v) =>
         v.title.toLowerCase().includes(termLower),
@@ -145,6 +175,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
+    // 4. Sort the results
     videos.sort((a, b) => {
       const { field, direction } = appState.sort;
       const valA = a[field];
@@ -337,11 +368,18 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function filterByTag(tagName) {
-    searchBox.value = `tag:${tagName}`;
-    appState.searchTerm = `tag:${tagName}`;
-    appState.currentPage = 1;
-    clearSearchBtn.classList.remove("hidden");
-    renderAll();
+    // This function is called when clicking a tag pill on a video item
+    if (
+      !appState.filterTags.has(tagName) &&
+      !appState.excludeTags.has(tagName)
+    ) {
+      appState.filterTags.add(tagName);
+      appState.currentPage = 1;
+      if (filterPanel.classList.contains("collapsed")) {
+        toggleFilterPanel(); // Open the panel for context
+      }
+      renderAll();
+    }
   }
 
   function handleSelectionChange(videoId) {
@@ -409,6 +447,94 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       tagSuggestionsList.appendChild(li);
     }
+  }
+
+  function toggleFilterPanel() {
+    const isExpanded = filterPanel.classList.toggle("collapsed");
+    toggleFilterBtn.setAttribute("aria-expanded", !isExpanded);
+  }
+
+  function renderFilterTags() {
+    selectedFilterTagsContainer.innerHTML = "";
+    appState.filterTags.forEach((tag) => {
+      const pill = createFilterTagPill(tag, false);
+      selectedFilterTagsContainer.appendChild(pill);
+    });
+    appState.excludeTags.forEach((tag) => {
+      const pill = createFilterTagPill(tag, true);
+      selectedFilterTagsContainer.appendChild(pill);
+    });
+  }
+
+  function createFilterTagPill(tagName, isExclude) {
+    const pill = document.createElement("span");
+    pill.className = `tag-pill ${isExclude ? "exclude-tag" : ""}`;
+
+    // FIX: Wrap the text content in its own span
+    const textSpan = document.createElement("span");
+    textSpan.textContent = tagName;
+    pill.appendChild(textSpan);
+
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "remove-tag-btn";
+    removeBtn.textContent = "×";
+    removeBtn.title = `Remove filter "${tagName}"`;
+    removeBtn.addEventListener("click", () => {
+      if (isExclude) {
+        appState.excludeTags.delete(tagName);
+      } else {
+        appState.filterTags.delete(tagName);
+      }
+      appState.currentPage = 1;
+      renderAll();
+    });
+
+    pill.appendChild(removeBtn);
+    return pill;
+  }
+
+  function renderTagFilterSuggestions() {
+    const query = tagFilterInput.value.toLowerCase().trim();
+
+    const availableTags = [...appState.allTags].filter(
+      (tag) => !appState.filterTags.has(tag) && !appState.excludeTags.has(tag),
+    );
+
+    // If query is empty, this will include all available tags.
+    // If query has text, it will filter them.
+    const suggestions = availableTags.filter((tag) =>
+      tag.toLowerCase().includes(query),
+    );
+
+    tagFilterSuggestionsList.innerHTML = "";
+    if (suggestions.length === 0) {
+      tagFilterSuggestionsPopover.classList.add("hidden");
+      return;
+    }
+
+    suggestions.forEach((tag) => {
+      const li = document.createElement("li");
+      li.textContent = tag;
+      li.addEventListener("click", () => {
+        if (notOperatorToggle.checked) {
+          appState.excludeTags.add(tag);
+        } else {
+          appState.filterTags.add(tag);
+        }
+        tagFilterInput.value = "";
+        tagFilterSuggestionsPopover.classList.add("hidden");
+        appState.currentPage = 1;
+        renderAll();
+      });
+      tagFilterSuggestionsList.appendChild(li);
+    });
+
+    const rect = tagFilterInput.getBoundingClientRect();
+    tagFilterSuggestionsPopover.style.left = `${rect.left}px`;
+    tagFilterSuggestionsPopover.style.top = `${rect.bottom + 2}px`;
+    tagFilterSuggestionsPopover.style.width = `${rect.width}px`;
+
+    tagFilterSuggestionsPopover.classList.remove("hidden");
   }
 
   // ===================================================================
@@ -555,7 +681,20 @@ document.addEventListener("DOMContentLoaded", () => {
   cancelEditBtn.addEventListener("click", showMainView);
   closeTagEditorBtn.addEventListener("click", hideTagEditor);
   tagSearchInput.addEventListener("input", renderTagSuggestions);
+
+  // Filter Panel Listeners
+  toggleFilterBtn.addEventListener("click", toggleFilterPanel);
+  tagFilterInput.addEventListener("input", renderTagFilterSuggestions);
+  tagFilterInput.addEventListener("focus", renderTagFilterSuggestions);
+
   document.addEventListener("click", (e) => {
+    // Hide tag filter suggestions if click is outside
+    if (
+      !tagFilterInput.contains(e.target) &&
+      !tagFilterSuggestionsPopover.contains(e.target)
+    ) {
+      tagFilterSuggestionsPopover.classList.add("hidden");
+    }
     if (
       appState.tagEditor.isOpen &&
       !tagEditorPopover.contains(e.target) &&

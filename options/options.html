@@ -21,13 +21,46 @@
                 <input type="checkbox" id="select-all-checkbox" class="master-checkbox"
                     title="Select/Deselect All Visible">
 
-                <div class="search-wrapper">
-                    <input type="search" id="search-box" placeholder="Search by title or tag:tagName...">
-                    <button id="clear-search-btn" class="clear-search-btn hidden" title="Clear search">&times;</button>
+                <div class="search-and-filter-wrapper">
+                    <div class="search-wrapper">
+                        <input type="search" id="search-box" placeholder="Search by title...">
+
+                        <button id="clear-search-btn" class="clear-search-btn hidden"
+                            title="Clear search">&times;</button>
+                    </div>
+
+                    <button id="toggle-filter-btn" class="toggle-filter-btn" aria-expanded="false"
+                        aria-controls="filter-panel" title="Filter & Sort Options">
+                        <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 96 960 960" width="24">
+                            <path
+                                d="M440 896q-17 0-28.5-11.5T400 856V616L168 344q-24-27-7-59t49-35h560q32 0 49 35t-7 59L560 616v240q0 17-11.5 28.5T520 896h-80Z" />
+                        </svg>
+
+                        <span>Filter</span>
+                    </button>
+                </div>
+            </div>
+
+            <div id="filter-panel" class="filter-panel collapsed">
+                <div class="tag-filter-section">
+                    <label>Filter by tags</label>
+
+                    <div id="selected-filter-tags" class="tags-container">
+                        <!-- Selected filter tags will be rendered here -->
+                    </div>
+
+                    <div class="tag-filter-input-wrapper">
+                        <input type="text" id="tag-filter-input" placeholder="Search for tags to filter by...">
+
+                        <label class="not-operator-label" title="Exclude this tag">
+                            <input type="checkbox" id="not-operator-toggle"> NOT
+                        </label>
+                    </div>
                 </div>
 
                 <div class="sort-container">
                     <label for="sort-select">Sort by:</label>
+
                     <select id="sort-select">
                         <option value="dateAdded_desc" selected>Date added (Newest)</option>
                         <option value="dateAdded_asc">Date added (Oldest)</option>
@@ -146,6 +179,10 @@
                 </ul>
             </div>
         </div>
+    </div>
+
+    <div id="tag-filter-suggestions-popover" class="tag-suggestions-popover hidden">
+        <ul id="tag-filter-suggestions-list"></ul>
     </div>
 
     <script src="options.js" type="module"></script>

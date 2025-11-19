@@ -149,26 +149,160 @@ body {
     border-radius: 4px;
 }
 
+/* --- Filter & Sort Panel Styles --- */
 .controls-header {
-    padding: 16px;
+    gap: 12px;
     display: flex;
-    gap: 20px;
-    align-items: center;
-    border-bottom: 1px solid #e0e0e0;
-    position: sticky;
-    top: 0;
-    /* Must have a background to hide content scrolling underneath */
-    background-color: #ffffff;
-    /* Ensure it stays on top of the list content */
-    z-index: 10;
+    padding: 20px;
+}
+
+.search-and-filter-wrapper {
+    display: flex;
+    flex-grow: 1;
+    gap: 10px;
 }
 
 .search-wrapper {
-    /* Anchor for the clear button */
     position: relative;
     display: flex;
-    align-items: center;
     flex-grow: 1;
+    align-items: center;
+}
+
+.toggle-filter-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 16px;
+    background-color: #f8f8f8;
+    border: 1px solid #ccc;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 14px;
+    white-space: nowrap;
+}
+
+.toggle-filter-btn:hover {
+    background-color: #e0e0e0;
+}
+
+.toggle-filter-btn svg {
+    fill: #606060;
+}
+
+.filter-panel {
+    padding: 16px;
+    background-color: #f9f9f9;
+    border-bottom: 1px solid #e0e0e0;
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 20px;
+    transition: max-height 0.2s linear, padding 0.2s linear;
+    max-height: 500px; /* Set high enough for content */
+    overflow: hidden;
+    position: relative;
+    z-index: 10;
+}
+
+.filter-panel.collapsed {
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-bottom-color: transparent;
+}
+
+.tag-filter-section {
+    display: flex;
+    flex-direction: column;
+}
+
+.tag-filter-section > label {
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 8px;
+    color: #333;
+}
+
+#selected-filter-tags {
+    margin-bottom: 10px;
+    min-height: 25px; /* Reserve space */
+}
+
+.tag-filter-input-wrapper {
+    position: relative;
+    display: flex;
+}
+
+#tag-filter-input {
+    flex-grow: 1;
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.not-operator-label {
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    font-size: 13px;
+    font-weight: bold;
+    color: #d93025;
+    cursor: pointer;
+}
+
+#not-operator-toggle {
+    margin-right: 4px;
+    transform: scale(1.2);
+}
+
+.tag-suggestions-popover {
+    position: absolute;
+    top: 105%; /* Position below the input */
+    left: 0;
+    width: 100%;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    z-index: 100;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+#tag-filter-suggestions-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+#tag-filter-suggestions-list li {
+    padding: 8px 12px !important;
+    font-size: 14px;
+    cursor: pointer;
+    z-index: 10;
+}
+
+#tag-filter-suggestions-list li:hover {
+    background-color: #f0f0f0;
+}
+
+.tag-pill.exclude-tag {
+    background-color: #fce8e6;
+    color: #a50e0e;
+}
+
+.tag-pill.exclude-tag:hover {
+    background-color: #f9bdbb;
+}
+
+.tag-pill.exclude-tag > span {
+    text-decoration: line-through;
+}
+
+/* Move sort container from header */
+.controls-header .sort-container {
+    display: none;
 }
 
 .master-checkbox,
