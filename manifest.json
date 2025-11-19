@@ -4,7 +4,8 @@
   "version": "3.1.0",
   "description": "Store youtube videos in a custom list, locally and securely.",
   "background": {
-    "scripts": ["background.js"]
+    "scripts": ["background.js"],
+    "type": "module"
   },
   "icons": {
     "48": "icons/yt-storer-logo-48.png",

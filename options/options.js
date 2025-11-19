@@ -1,7 +1,8 @@
-import { normalizeText } from "../shared/list-logic.js";
+import * as storage from "../shared/storage.js";
+import { normalizeText, formatCompactTimestamp } from "../shared/utils.js";
 
 document.addEventListener("DOMContentLoaded", () => {
-  // --- DOM Element References (Fused from both files) ---
+  // --- DOM Element References ---
   const mainView = document.getElementById("main-view");
   const editView = document.getElementById("edit-view");
   const settingsView = document.getElementById("settings-view");
@@ -29,126 +30,143 @@ document.addEventListener("DOMContentLoaded", () => {
   const editTitleInput = document.getElementById("edit-title");
   const editUrlInput = document.getElementById("edit-url");
   const editCleanUrlInput = document.getElementById("edit-cleanUrl");
-  const editTagsInput = document.getElementById("edit-tags");
   const editTagsContainer = document.getElementById("edit-tags-container");
   const cancelEditBtn = document.getElementById("cancel-edit-btn");
 
-  // --- State Variables (Fused from both files) ---
-  let allVideos = [];
-  let allTags = new Set();
-  let selectedVideoIds = new Set();
-  let currentlyEditingVideoId = null;
-  let currentSort = { field: "dateAdded", direction: "desc" };
-  let tagEditorState = {
-    isOpen: false,
-    targetVideoIds: [],
-    anchorElement: null,
+  // --- Central Application State ---
+  const appState = {
+    allVideos: [],
+    allTags: new Set(),
+    selectedVideoIds: new Set(),
+    searchTerm: "",
+    sort: { field: "dateAdded", direction: "desc" },
+    currentlyEditingVideoId: null,
+    tagEditor: {
+      isOpen: false,
+      targetVideoIds: [],
+      anchorElement: null,
+    },
   };
 
   // ===================================================================
-  // MIGRATION: Ensure all existing videos have the new data fields.
+  // VIEW SWITCHING
   // ===================================================================
 
-  async function migrateData(videos) {
-    let needsUpdate = false;
-    const updatedVideos = videos.map((video) => {
-      let videoModified = false;
-      if (typeof video.dateAdded !== "number") {
-        video.dateAdded = Date.now();
-        videoModified = true;
-      }
-      if (!Array.isArray(video.tags)) {
-        video.tags = [];
-        videoModified = true;
-      }
-      if (videoModified) needsUpdate = true;
-      return video;
-    });
+  function showMainView() {
+    appState.currentlyEditingVideoId = null;
+    editForm.reset();
+    editView.classList.add("hidden");
+    settingsView.classList.add("hidden");
+    mainView.classList.remove("hidden");
+    renderVideoList(); // Always re-render when switching views
+  }
 
-    if (needsUpdate) {
-      console.log("YT Storer: Migrating old data to new format.");
-      await browser.storage.local.set({ videos: updatedVideos });
-      return updatedVideos;
-    }
-    return videos;
+  function showSettingsView() {
+    mainView.classList.add("hidden");
+    editView.classList.add("hidden");
+    settingsView.classList.remove("hidden");
+  }
+
+  function showEditView(video) {
+    appState.currentlyEditingVideoId = video.id;
+
+    // Populate form fields
+    editTitleInput.value = video.title;
+    editUrlInput.value = video.url;
+    editCleanUrlInput.value = video.cleanUrl;
+
+    // Render tags for the video being edited
+    editTagsContainer.innerHTML = "";
+    video.tags.forEach((tagName) => {
+      const tagPill = createTagPill(tagName, video.id);
+      editTagsContainer.appendChild(tagPill);
+    });
+    const addTagBtn = document.createElement("button");
+    addTagBtn.className = "add-tag-btn";
+    addTagBtn.textContent = "+ Add Tag";
+    addTagBtn.type = "button"; // Prevent form submission
+    addTagBtn.addEventListener("click", (e) =>
+      showTagEditor([video.id], e.currentTarget),
+    );
+    editTagsContainer.appendChild(addTagBtn);
+
+    mainView.classList.add("hidden");
+    settingsView.classList.add("hidden");
+    editView.classList.remove("hidden");
   }
 
   // ===================================================================
-  // MAIN RENDER FUNCTION (The new, powerful version)
+  // RENDER LOGIC
   // ===================================================================
 
-  function render() {
-    videoListElement.innerHTML = "";
+  function getVisibleVideos() {
+    let videos = [...appState.allVideos];
+    const term = appState.searchTerm;
 
-    // 1. Filter
-    let videosToRender = [...allVideos];
-    const rawSearchTerm = searchBox.value;
-
-    if (rawSearchTerm.toLowerCase().startsWith("tag:")) {
-      const tagName = rawSearchTerm.substring(4).trim();
-      videosToRender = videosToRender.filter((v) => v.tags.includes(tagName));
-    } else if (rawSearchTerm) {
-      const searchTermLower = rawSearchTerm.toLowerCase();
-
-      // --- Stage 1: Fast, exact substring search ---
-      let primaryResults = videosToRender.filter((v) =>
-        v.title.toLowerCase().includes(searchTermLower),
+    if (term.toLowerCase().startsWith("tag:")) {
+      const tagName = term.substring(4).trim();
+      videos = videos.filter((v) => v.tags.includes(tagName));
+    } else if (term) {
+      const termLower = term.toLowerCase();
+      let primaryResults = videos.filter((v) =>
+        v.title.toLowerCase().includes(termLower),
       );
-
       if (primaryResults.length > 0) {
-        videosToRender = primaryResults;
+        videos = primaryResults;
       } else {
-        // --- Stage 2: Fuzzy search (if Stage 1 yields no results) ---
-        const normalizedQuery = normalizeText(rawSearchTerm);
+        const normalizedQuery = normalizeText(term);
         const searchTerms = normalizedQuery
           .split(" ")
-          .filter((term) => term.length > 0);
-
+          .filter((t) => t.length > 0);
         if (searchTerms.length > 0) {
-          videosToRender = videosToRender.filter((video) => {
-            const normalizedTitle = normalizeText(video.title);
-            // Check if every search term is present in the normalized title
-            return searchTerms.every((term) => normalizedTitle.includes(term));
+          videos = videos.filter((v) => {
+            const normalizedTitle = normalizeText(v.title);
+            return searchTerms.every((t) => normalizedTitle.includes(t));
           });
         } else {
-          // If the query was only punctuation/whitespace, show no results
-          videosToRender = [];
+          videos = [];
         }
       }
     }
 
-    // 2. Sort
-    videosToRender.sort((a, b) => {
-      const field = currentSort.field;
+    videos.sort((a, b) => {
+      const { field, direction } = appState.sort;
       const valA = a[field];
       const valB = b[field];
       let comparison = 0;
       if (valA > valB) comparison = 1;
       else if (valA < valB) comparison = -1;
-      return currentSort.direction === "asc" ? comparison : -comparison;
+      return direction === "asc" ? comparison : -comparison;
     });
 
-    // 3. Render
+    return videos;
+  }
+
+  function renderVideoList() {
+    videoListElement.innerHTML = "";
+    const videosToRender = getVisibleVideos();
+
     if (videosToRender.length === 0) {
-      // Correctly handle the empty state without an alert
       const li = document.createElement("li");
       li.className = "empty-message";
       li.textContent =
-        allVideos.length === 0
+        appState.allVideos.length === 0
           ? "Right-click a YouTube video page to store it."
-          : `No videos found for "${rawSearchTerm}"`;
+          : `No videos found for "${appState.searchTerm}"`;
       videoListElement.appendChild(li);
       return;
     }
 
     videosToRender.forEach((video) => {
       const listItem = document.createElement("li");
-      listItem.className = selectedVideoIds.has(video.id) ? "selected" : "";
+      listItem.className = appState.selectedVideoIds.has(video.id)
+        ? "selected"
+        : "";
 
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
       checkbox.className = "selection-checkbox";
-      checkbox.checked = selectedVideoIds.has(video.id);
+      checkbox.checked = appState.selectedVideoIds.has(video.id);
       checkbox.addEventListener("change", () =>
         handleSelectionChange(video.id),
       );
@@ -161,35 +179,17 @@ document.addEventListener("DOMContentLoaded", () => {
       const link = document.createElement("a");
       link.href = video.url;
       link.textContent = video.title;
-
       link.addEventListener("mousedown", (e) => {
-        e.preventDefault(); // Prevent default link behavior on all clicks
-
-        if (e.button === 1) {
-          // Middle-click
-          // Open the "clean" URL in a new background tab
-          browser.tabs.create({
-            url: video.cleanUrl,
-            // active: false, // Opens the tab without switching to it
-          });
-        } else if (e.button === 0) {
-          // Left-click
-          // Open the "raw" URL in a new foreground tab
-          browser.tabs.create({
-            url: video.url,
-          });
-        }
-        // Right-click (e.button === 2) will do nothing and just show the
-        // browser's context menu, which is standard expected behavior.
+        e.preventDefault();
+        if (e.button === 1) browser.tabs.create({ url: video.cleanUrl });
+        else if (e.button === 0) browser.tabs.create({ url: video.url });
       });
-
       titleDiv.appendChild(link);
 
       const tagsContainer = document.createElement("div");
       tagsContainer.className = "tags-container";
       video.tags.forEach((tagName) => {
-        const tagPill = createTagPill(tagName, video.id);
-        tagsContainer.appendChild(tagPill);
+        tagsContainer.appendChild(createTagPill(tagName, video.id));
       });
       const addTagBtn = document.createElement("button");
       addTagBtn.className = "add-tag-btn";
@@ -215,20 +215,15 @@ document.addEventListener("DOMContentLoaded", () => {
       editButton.textContent = "✎";
       editButton.className = "list-btn edit-btn";
       editButton.title = "Edit video details";
-      editButton.addEventListener("click", (e) => {
-        e.stopPropagation();
-        showEditView(video);
-      });
+      editButton.addEventListener("click", () => showEditView(video));
 
-      // -- BUTTONS FIX: The individual delete button is restored --
       const deleteButton = document.createElement("button");
       deleteButton.className = "list-btn delete-btn";
       deleteButton.textContent = "✖";
       deleteButton.title = "Delete video";
-      deleteButton.addEventListener("click", (e) => {
-        e.stopPropagation();
+      deleteButton.addEventListener("click", () => {
         if (confirm(`Are you sure you want to delete "${video.title}"?`)) {
-          deleteVideos([video.id]);
+          storage.deleteVideosByIds([video.id]);
         }
       });
 
@@ -237,164 +232,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
       listItem.appendChild(checkbox);
       listItem.appendChild(detailsDiv);
-      listItem.appendChild(actionButtonsDiv); // Append the button container to the far right
+      listItem.appendChild(actionButtonsDiv);
       videoListElement.appendChild(listItem);
     });
   }
 
-  // ===================================================================
-  // VIEW SWITCHING
-  // ===================================================================
-
-  function showMainView() {
-    currentlyEditingVideoId = null;
-    editForm.reset();
-    editView.classList.add("hidden");
-    settingsView.classList.add("hidden");
-    mainView.classList.remove("hidden");
-    render();
-  }
-
-  function showSettingsView() {
-    mainView.classList.add("hidden");
-    editView.classList.add("hidden");
-    settingsView.classList.remove("hidden");
-  }
-
-  function showEditView(video) {
-    currentlyEditingVideoId = video.id;
-    // Populate text fields
-    editTitleInput.value = video.title;
-    editUrlInput.value = video.url;
-    editCleanUrlInput.value = video.cleanUrl;
-
-    editTagsContainer.innerHTML = ""; // Clear previous tags
-    video.tags.forEach((tagName) => {
-      const tagPill = createTagPill(tagName, video.id);
-      editTagsContainer.appendChild(tagPill);
-    });
-    const addTagBtn = document.createElement("button");
-    addTagBtn.className = "add-tag-btn";
-    addTagBtn.textContent = "+ Add Tag";
-    addTagBtn.addEventListener("click", (e) => {
-      e.preventDefault(); // Prevent form submission
-      showTagEditor([video.id], e.currentTarget);
-    });
-    editTagsContainer.appendChild(addTagBtn);
-
-    mainView.classList.add("hidden");
-    settingsView.classList.add("hidden");
-    editView.classList.remove("hidden");
-  }
-
-  // ===================================================================
-  // DATA MODIFICATION FUNCTIONS
-  // ===================================================================
-
-  // HANDLE SAVE EDIT
-  async function handleSaveEdit(event) {
-    event.preventDefault();
-    if (!currentlyEditingVideoId) return;
-
-    const videoToUpdate = allVideos.find(
-      (v) => v.id === currentlyEditingVideoId,
-    );
-
-    if (videoToUpdate) {
-      videoToUpdate.title = editTitleInput.value.trim();
-      videoToUpdate.url = editUrlInput.value.trim();
-      videoToUpdate.cleanUrl = editCleanUrlInput.value.trim();
-    }
-
-    await browser.storage.local.set({ videos: allVideos });
-
-    const saveBtn = document.getElementById("save-edit-btn");
-    const originalText = saveBtn.textContent;
-    saveBtn.textContent = "Saved!";
-
-    setTimeout(() => {
-      saveBtn.textContent = originalText;
-    }, 1500);
-  }
-
-  async function removeTagFromVideo(tagName, videoId) {
-    const video = allVideos.find((v) => v.id === videoId);
-    if (video) {
-      video.tags = video.tags.filter((t) => t !== tagName);
-      await browser.storage.local.set({ videos: allVideos });
-    }
-  }
-
-  async function addTagToVideos(tagName, videoIds) {
-    let changed = false;
-    allVideos.forEach((video) => {
-      if (videoIds.includes(video.id) && !video.tags.includes(tagName)) {
-        video.tags.push(tagName);
-        changed = true;
-      }
-    });
-    if (changed) {
-      allTags.add(tagName);
-      await browser.storage.local.set({ videos: allVideos });
-    }
-
-    if (
-      !editView.classList.contains("hidden") &&
-      videoIds.includes(currentlyEditingVideoId)
-    ) {
-      const currentVideo = allVideos.find(
-        (v) => v.id === currentlyEditingVideoId,
-      );
-      if (currentVideo) {
-        showEditView(currentVideo);
-      }
-    }
-  }
-
-  async function deleteVideos(videoIds) {
-    const newVideos = allVideos.filter((v) => !videoIds.includes(v.id));
-    await browser.storage.local.set({ videos: newVideos });
-    selectedVideoIds.clear();
-  }
-
-  // ===================================================================
-  // TAGS, SELECTION, AND OTHER HELPERS (From new file)
-  // ===================================================================
-
-  function createTagPill(tagName, videoId) {
-    const pill = document.createElement("span");
-    pill.className = "tag-pill";
-    pill.textContent = tagName;
-    pill.addEventListener("click", () => filterByTag(tagName));
-    const removeBtn = document.createElement("button");
-    removeBtn.className = "remove-tag-btn";
-    removeBtn.textContent = "×";
-    removeBtn.title = `Remove tag "${tagName}"`;
-    removeBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      removeTagFromVideo(tagName, videoId);
-    });
-    pill.appendChild(removeBtn);
-    return pill;
-  }
-
-  function filterByTag(tagName) {
-    searchBox.value = `tag:${tagName}`;
-    render();
-  }
-
-  function handleSelectionChange(videoId) {
-    if (selectedVideoIds.has(videoId)) {
-      selectedVideoIds.delete(videoId);
-    } else {
-      selectedVideoIds.add(videoId);
-    }
-    render();
-    updateBulkActionsBar();
-  }
-
-  function updateBulkActionsBar() {
-    const count = selectedVideoIds.size;
+  function renderBulkActionsBar() {
+    const count = appState.selectedVideoIds.size;
     if (count > 0) {
       selectionCountSpan.textContent = `${count} selected`;
       bulkActionsBar.classList.remove("hidden");
@@ -402,12 +246,18 @@ document.addEventListener("DOMContentLoaded", () => {
       bulkActionsBar.classList.add("hidden");
     }
 
-    const visibleIds = getVisibleVideoIds();
-    const allVisibleSelected =
-      visibleIds.length > 0 &&
-      visibleIds.every((id) => selectedVideoIds.has(id));
+    const visibleIds = getVisibleVideos().map((v) => v.id);
+    if (visibleIds.length === 0) {
+      selectAllCheckbox.checked = false;
+      selectAllCheckbox.indeterminate = false;
+      return;
+    }
+
+    const allVisibleSelected = visibleIds.every((id) =>
+      appState.selectedVideoIds.has(id),
+    );
     const someVisibleSelected = visibleIds.some((id) =>
-      selectedVideoIds.has(id),
+      appState.selectedVideoIds.has(id),
     );
 
     if (allVisibleSelected) {
@@ -415,115 +265,266 @@ document.addEventListener("DOMContentLoaded", () => {
       selectAllCheckbox.indeterminate = false;
     } else if (someVisibleSelected) {
       selectAllCheckbox.checked = false;
-      selectAllCheckbox.indeterminate = true; // The "mixed" state
+      selectAllCheckbox.indeterminate = true;
     } else {
       selectAllCheckbox.checked = false;
       selectAllCheckbox.indeterminate = false;
     }
   }
 
+  // ===================================================================
+  // UI COMPONENT LOGIC (Tags, Selection, etc.)
+  // ===================================================================
+
+  function createTagPill(tagName, videoId) {
+    const pill = document.createElement("span");
+    pill.className = "tag-pill";
+    pill.textContent = tagName;
+    pill.addEventListener("click", () => filterByTag(tagName));
+
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "remove-tag-btn";
+    removeBtn.textContent = "×";
+    removeBtn.title = `Remove tag "${tagName}"`;
+    removeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      storage.removeTagFromVideo(tagName, videoId);
+    });
+
+    pill.appendChild(removeBtn);
+    return pill;
+  }
+
+  function filterByTag(tagName) {
+    searchBox.value = `tag:${tagName}`;
+    appState.searchTerm = `tag:${tagName}`;
+    clearSearchBtn.classList.remove("hidden");
+    renderVideoList();
+    renderBulkActionsBar();
+  }
+
+  function handleSelectionChange(videoId) {
+    if (appState.selectedVideoIds.has(videoId)) {
+      appState.selectedVideoIds.delete(videoId);
+    } else {
+      appState.selectedVideoIds.add(videoId);
+    }
+    renderVideoList(); // Re-render to update the 'selected' class on <li>
+    renderBulkActionsBar();
+  }
+
   function showTagEditor(videoIds, anchorElement) {
-    tagEditorState = { isOpen: true, targetVideoIds: videoIds, anchorElement };
-
-    // By clearing the input's value *before* making the popup visible and
-    // rendering suggestions, we guarantee it always opens in a clean state.
+    appState.tagEditor = {
+      isOpen: true,
+      targetVideoIds: videoIds,
+      anchorElement,
+    };
     tagSearchInput.value = "";
-
-    // First, make the popover visible so we can measure its dimensions.
     tagEditorPopover.classList.remove("hidden");
+    renderTagSuggestions(); // Render once to get height
 
-    // We must render the suggestions now (even though the list will be full)
-    // so that the popover has its proper height for the positioning calculation.
-    renderTagSuggestions();
-
-    // This logic decides whether to show the popup above or below the anchor.
-    const popupHeight = tagEditorPopover.offsetHeight;
     const rect = anchorElement.getBoundingClientRect();
+    const popoverHeight = tagEditorPopover.offsetHeight;
     const spaceBelow = window.innerHeight - rect.bottom;
 
-    // Check if there's not enough space below, but there is enough space above.
-    if (spaceBelow < popupHeight && rect.top > popupHeight) {
-      // Position the popup *above* the anchor element.
-      tagEditorPopover.style.top = `${window.scrollY + rect.top - popupHeight - 5}px`;
+    if (spaceBelow < popoverHeight && rect.top > popoverHeight) {
+      tagEditorPopover.style.top = `${window.scrollY + rect.top - popoverHeight - 5}px`;
     } else {
-      // Default behavior: position the popup *below* the anchor element.
       tagEditorPopover.style.top = `${window.scrollY + rect.bottom + 5}px`;
     }
-
-    // Horizontal positioning remains the same.
     tagEditorPopover.style.left = `${window.scrollX + rect.left}px`;
-
-    // Finally, focus the input field for immediate typing.
     tagSearchInput.focus();
   }
 
   function hideTagEditor() {
-    tagEditorState.isOpen = false;
+    appState.tagEditor.isOpen = false;
     tagEditorPopover.classList.add("hidden");
   }
 
   function renderTagSuggestions() {
     tagSuggestionsList.innerHTML = "";
     const query = tagSearchInput.value.toLowerCase().trim();
-    const suggestions = [...allTags].filter((tag) =>
+    const suggestions = [...appState.allTags].filter((tag) =>
       tag.toLowerCase().includes(query),
     );
+
     suggestions.forEach((tag) => {
       const li = document.createElement("li");
       li.textContent = tag;
       li.addEventListener("click", () => {
-        addTagToVideos(tag, tagEditorState.targetVideoIds);
+        storage.addTagToVideos(tag, appState.tagEditor.targetVideoIds);
         hideTagEditor();
       });
       tagSuggestionsList.appendChild(li);
     });
-    if (query && ![...allTags].map((t) => t.toLowerCase()).includes(query)) {
+
+    if (query && !suggestions.includes(query)) {
       const li = document.createElement("li");
       li.innerHTML = `Create new tag: "<strong>${query}</strong>"`;
       li.addEventListener("click", () => {
-        addTagToVideos(query, tagEditorState.targetVideoIds);
+        storage.addTagToVideos(query, appState.tagEditor.targetVideoIds);
         hideTagEditor();
       });
       tagSuggestionsList.appendChild(li);
     }
   }
 
-  function exportList() {
-    function formatCompact(date) {
-      const pad = (n, w = 2) => String(n).padStart(w, "0");
-      const YYYY = date.getFullYear();
-      const MM = pad(date.getMonth() + 1);
-      const DD = pad(date.getDate());
-      const HH = pad(date.getHours());
-      const mm = pad(date.getMinutes());
-      const ss = pad(date.getSeconds());
-      return `${YYYY}${MM}${DD}_${HH}${mm}${ss}`;
-    }
+  // ===================================================================
+  // DATA ACTIONS & EVENT HANDLERS
+  // ===================================================================
 
-    if (allVideos.length === 0) {
-      alert("Your video list is empty.");
-      return;
+  async function handleSaveEdit(event) {
+    event.preventDefault();
+    if (!appState.currentlyEditingVideoId) return;
+
+    const updates = {
+      title: editTitleInput.value.trim(),
+      url: editUrlInput.value.trim(),
+      cleanUrl: editCleanUrlInput.value.trim(),
+    };
+    await storage.updateVideo(appState.currentlyEditingVideoId, updates);
+
+    const saveBtn = document.getElementById("save-edit-btn");
+    saveBtn.textContent = "Saved!";
+    setTimeout(() => {
+      saveBtn.textContent = "Save";
+    }, 1500);
+  }
+
+  function handleStateUpdate(videos) {
+    appState.allVideos = videos;
+    appState.allTags.clear();
+    videos.forEach((video) =>
+      video.tags.forEach((tag) => appState.allTags.add(tag)),
+    );
+
+    // If edit view is open, check if the video still exists
+    if (appState.currentlyEditingVideoId) {
+      const currentlyEditingVideo = videos.find(
+        (v) => v.id === appState.currentlyEditingVideoId,
+      );
+      if (currentlyEditingVideo) {
+        showEditView(currentlyEditingVideo); // Refresh view with new data
+      } else {
+        showMainView(); // Video was deleted, go back to list
+      }
+    } else {
+      renderVideoList();
+      renderBulkActionsBar();
     }
-    const jsonString = JSON.stringify(allVideos, null, 2);
+  }
+
+  // Listen for changes from other extension parts (e.g., background script)
+  browser.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && changes.videos) {
+      handleStateUpdate(changes.videos.newValue || []);
+    }
+  });
+
+  // Search and Sort controls
+  searchBox.addEventListener("input", () => {
+    appState.searchTerm = searchBox.value;
+    clearSearchBtn.classList.toggle("hidden", !searchBox.value);
+    renderVideoList();
+    renderBulkActionsBar();
+  });
+
+  clearSearchBtn.addEventListener("click", () => {
+    searchBox.value = "";
+    appState.searchTerm = "";
+    clearSearchBtn.classList.add("hidden");
+    searchBox.focus();
+    renderVideoList();
+    renderBulkActionsBar();
+  });
+
+  sortSelect.addEventListener("change", (e) => {
+    const [field, direction] = e.target.value.split("_");
+    appState.sort = { field, direction };
+    renderVideoList();
+  });
+
+  // Bulk selection controls
+  selectAllCheckbox.addEventListener("change", (e) => {
+    const visibleIds = getVisibleVideos().map((v) => v.id);
+    if (e.target.checked) {
+      visibleIds.forEach((id) => appState.selectedVideoIds.add(id));
+    } else {
+      visibleIds.forEach((id) => appState.selectedVideoIds.delete(id));
+    }
+    renderVideoList();
+    renderBulkActionsBar();
+  });
+
+  deselectAllBtn.addEventListener("click", () => {
+    appState.selectedVideoIds.clear();
+    renderVideoList();
+    renderBulkActionsBar();
+  });
+
+  invertSelectionBtn.addEventListener("click", () => {
+    const visibleIds = getVisibleVideos().map((v) => v.id);
+    visibleIds.forEach((id) => {
+      if (appState.selectedVideoIds.has(id)) {
+        appState.selectedVideoIds.delete(id);
+      } else {
+        appState.selectedVideoIds.add(id);
+      }
+    });
+    renderVideoList();
+    renderBulkActionsBar();
+  });
+
+  // Bulk action buttons
+  bulkAddTagBtn.addEventListener("click", (e) => {
+    showTagEditor(Array.from(appState.selectedVideoIds), e.currentTarget);
+  });
+
+  bulkDeleteBtn.addEventListener("click", () => {
+    const count = appState.selectedVideoIds.size;
+    if (confirm(`Are you sure you want to delete ${count} selected videos?`)) {
+      storage.deleteVideosByIds(Array.from(appState.selectedVideoIds));
+      appState.selectedVideoIds.clear(); // Clear selection immediately for UI responsiveness
+    }
+  });
+
+  // Edit form and Tag Editor controls
+  editForm.addEventListener("submit", handleSaveEdit);
+  cancelEditBtn.addEventListener("click", showMainView);
+  closeTagEditorBtn.addEventListener("click", hideTagEditor);
+  tagSearchInput.addEventListener("input", renderTagSuggestions);
+  document.addEventListener("click", (e) => {
+    if (
+      appState.tagEditor.isOpen &&
+      !tagEditorPopover.contains(e.target) &&
+      e.target !== appState.tagEditor.anchorElement
+    ) {
+      hideTagEditor();
+    }
+  });
+
+  // Settings page controls
+  settingsBtn.addEventListener("click", showSettingsView);
+  backToListBtn.addEventListener("click", showMainView);
+
+  exportBtn.addEventListener("click", () => {
+    if (appState.allVideos.length === 0)
+      return alert("Your video list is empty.");
+    const jsonString = JSON.stringify(appState.allVideos, null, 2);
     const blob = new Blob([jsonString], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    const timestamp = formatCompact(new Date());
-
     a.href = url;
-    a.download = `yt-storer-export-${timestamp}.json`;
-
-    document.body.appendChild(a);
+    a.download = `yt-storer-export-${formatCompactTimestamp(new Date())}.json`;
     a.click();
-    document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }
+  });
 
-  function importList(event) {
+  importFile.addEventListener("change", (event) => {
     const file = event.target.files[0];
     if (!file) return;
     if (
-      allVideos.length > 0 &&
+      appState.allVideos.length > 0 &&
       !confirm("This will PERMANENTLY REPLACE your current list. Are you sure?")
     ) {
       event.target.value = "";
@@ -539,185 +540,28 @@ document.addEventListener("DOMContentLoaded", () => {
         ) {
           throw new Error("Invalid file format.");
         }
-        await browser.storage.local.set({ videos: importedVideos });
-        // The storage listener below will handle the UI update
+        await storage.setVideos(importedVideos);
         alert(`Successfully imported ${importedVideos.length} videos.`);
       } catch (error) {
         alert("Import failed. Please use a valid backup file.");
-        console.error("YT Storer: Import error", error);
       } finally {
         event.target.value = "";
       }
     };
     reader.readAsText(file);
-  }
+  });
 
   // ===================================================================
-  // MULTI-SELECTION HANDLING
-  // ===================================================================
-
-  function getVisibleVideoIds() {
-    // This helper function is crucial. It gets the IDs of only the videos
-    // that are currently visible after filtering and searching.
-    const searchTerm = searchBox.value.toLowerCase();
-    return allVideos
-      .filter((video) => {
-        if (searchTerm.startsWith("tag:")) {
-          const tagName = searchTerm.substring(4).trim();
-          return video.tags.includes(tagName);
-        } else if (searchTerm) {
-          return video.title.toLowerCase().includes(searchTerm);
-        }
-        return true; // No search term, so it's visible
-      })
-      .map((video) => video.id);
-  }
-
-  function handleSelectAll(shouldSelect) {
-    const visibleIds = getVisibleVideoIds();
-    if (shouldSelect) {
-      // Add all visible IDs to the selection
-      visibleIds.forEach((id) => selectedVideoIds.add(id));
-    } else {
-      // Remove all visible IDs from the selection
-      visibleIds.forEach((id) => selectedVideoIds.delete(id));
-    }
-    render();
-    updateBulkActionsBar();
-  }
-
-  function handleDeselectAll() {
-    selectedVideoIds.clear();
-    render();
-    updateBulkActionsBar();
-  }
-
-  function handleInvertSelection() {
-    const visibleIds = getVisibleVideoIds();
-    visibleIds.forEach((id) => {
-      if (selectedVideoIds.has(id)) {
-        selectedVideoIds.delete(id);
-      } else {
-        selectedVideoIds.add(id);
-      }
-    });
-    render();
-    updateBulkActionsBar();
-  }
-
-  // ===================================================================
-  // INITIALIZATION & EVENT LISTENERS
+  // INITIALIZATION
   // ===================================================================
 
   async function init() {
-    const result = await browser.storage.local.get({ videos: [] });
-    const migratedVideos = await migrateData(result.videos);
-    allVideos = migratedVideos;
-    allTags.clear();
-    allVideos.forEach((video) => video.tags.forEach((tag) => allTags.add(tag)));
-
     const manifest = browser.runtime.getManifest();
     versionDisplay.textContent = manifest.version;
 
-    render();
+    const initialVideos = await storage.getVideos();
+    handleStateUpdate(initialVideos);
   }
-
-  browser.storage.onChanged.addListener(async (changes, area) => {
-    if (area === "local" && changes.videos) {
-      allVideos = changes.videos.newValue || [];
-      allTags.clear();
-      allVideos.forEach((video) =>
-        video.tags.forEach((tag) => allTags.add(tag)),
-      );
-
-      if (!editView.classList.contains("hidden") && currentlyEditingVideoId) {
-        // If the edit view is open, refresh it.
-        const currentVideo = allVideos.find(
-          (v) => v.id === currentlyEditingVideoId,
-        );
-        if (currentVideo) {
-          showEditView(currentVideo);
-        } else {
-          // The video being edited was deleted, so go back to the main list.
-          showMainView();
-        }
-      } else {
-        // Otherwise, refresh the main list view.
-        render();
-        updateBulkActionsBar();
-      }
-    }
-  });
-
-  searchBox.addEventListener("input", render);
-
-  searchBox.addEventListener("input", () => {
-    // Show or hide the clear button based on whether the input has text
-    if (searchBox.value) {
-      clearSearchBtn.classList.remove("hidden");
-    } else {
-      clearSearchBtn.classList.add("hidden");
-    }
-    render(); // Call the existing render function
-  });
-
-  clearSearchBtn.addEventListener("click", () => {
-    searchBox.value = ""; // Clear the input
-    clearSearchBtn.classList.add("hidden"); // Hide the button
-    searchBox.focus(); // Return focus to the search box
-    render(); // Re-render the list
-  });
-
-  sortSelect.addEventListener("change", (e) => {
-    const [field, direction] = e.target.value.split("_");
-    currentSort = { field, direction };
-    render();
-  });
-
-  exportBtn.addEventListener("click", exportList);
-
-  importFile.addEventListener("change", importList);
-
-  bulkAddTagBtn.addEventListener("click", (e) => {
-    showTagEditor(Array.from(selectedVideoIds), e.currentTarget);
-  });
-
-  bulkDeleteBtn.addEventListener("click", () => {
-    if (
-      confirm(
-        `Are you sure you want to delete ${selectedVideoIds.size} selected videos?`,
-      )
-    ) {
-      deleteVideos(Array.from(selectedVideoIds));
-    }
-  });
-
-  closeTagEditorBtn.addEventListener("click", hideTagEditor);
-
-  tagSearchInput.addEventListener("input", renderTagSuggestions);
-
-  document.addEventListener("click", (e) => {
-    if (
-      tagEditorState.isOpen &&
-      !tagEditorPopover.contains(e.target) &&
-      e.target !== tagEditorState.anchorElement
-    ) {
-      hideTagEditor();
-    }
-  });
-
-  editForm.addEventListener("submit", handleSaveEdit);
-
-  cancelEditBtn.addEventListener("click", showMainView);
-
-  selectAllCheckbox.addEventListener("change", (e) => {
-    handleSelectAll(e.target.checked);
-  });
-  deselectAllBtn.addEventListener("click", handleDeselectAll);
-  invertSelectionBtn.addEventListener("click", handleInvertSelection);
-
-  settingsBtn.addEventListener("click", showSettingsView);
-  backToListBtn.addEventListener("click", showMainView);
 
   init();
 });
