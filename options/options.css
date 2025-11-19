@@ -475,3 +475,76 @@ li.selected {
 #tag-suggestions-list li:hover {
     background-color: #f0f0f0;
 }
+
+/* Pagination Controls */
+.pagination-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 16px;
+    gap: 15px;
+    border-top: 1px solid #e0e0e0;
+}
+
+.page-btn {
+    padding: 6px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: #f8f8f8;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 14px;
+}
+
+.page-btn:hover:not(:disabled) {
+    background-color: #e0e0e0;
+}
+
+.page-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+#page-info {
+    font-size: 14px;
+    color: #606060;
+    font-weight: 500;
+}
+
+/* Settings Page Inputs */
+.setting-label {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+}
+
+.setting-label label {
+    font-size: 16px;
+    font-weight: 500;
+    color: #333;
+    margin-bottom: 2px;
+}
+
+.setting-label span {
+    font-size: 13px;
+    color: #606060;
+}
+
+.small-input {
+    padding: 6px 8px;
+    width: 80px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+    text-align: center;
+}
+
+.small-input:disabled {
+    background-color: #f1f1f1;
+    cursor: not-allowed;
+}
+
+.toggle-switch {
+    transform: scale(1.5);
+    margin-right: 5px;
+}

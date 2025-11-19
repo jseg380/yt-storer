@@ -49,6 +49,12 @@
             <ul id="video-list">
                 <!-- Videos will be added here -->
             </ul>
+
+            <div id="pagination-controls" class="pagination-controls hidden">
+                <button id="prev-page-btn" class="page-btn">&laquo; Prev</button>
+                <span id="page-info"></span>
+                <button id="next-page-btn" class="page-btn">Next &raquo;</button>
+            </div>
         </div>
 
         <!-- Edit View -->
@@ -87,6 +93,7 @@
                 <button id="back-to-list-btn" class="back-btn">&larr; Back to List</button>
                 <h2>Settings</h2>
             </div>
+
             <div class="settings-content">
                 <div class="settings-section">
                     <h3>Data Management</h3>
@@ -98,6 +105,24 @@
                         <span>Import a list from a JSON file. This will permanently replace your current list.</span>
                         <label for="import-file" class="action-btn">Import List</label>
                         <input type="file" id="import-file" accept=".json" style="display: none;">
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>List Display</h3>
+                    <div class="setting-item">
+                        <div class="setting-label">
+                            <label for="pagination-enabled-checkbox">Enable Pagination</label>
+                            <span>Divide the video list into multiple pages.</span>
+                        </div>
+                        <input type="checkbox" id="pagination-enabled-checkbox" class="toggle-switch">
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-label">
+                            <label for="items-per-page-input">Items Per Page</label>
+                            <span>The number of videos to show on each page.</span>
+                        </div>
+                        <input type="number" id="items-per-page-input" min="10" max="200" step="5" class="small-input">
                     </div>
                 </div>
 

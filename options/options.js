@@ -32,6 +32,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const editCleanUrlInput = document.getElementById("edit-cleanUrl");
   const editTagsContainer = document.getElementById("edit-tags-container");
   const cancelEditBtn = document.getElementById("cancel-edit-btn");
+  const paginationControls = document.getElementById("pagination-controls");
+  const prevPageBtn = document.getElementById("prev-page-btn");
+  const nextPageBtn = document.getElementById("next-page-btn");
+  const pageInfoSpan = document.getElementById("page-info");
+  const paginationEnabledCheckbox = document.getElementById(
+    "pagination-enabled-checkbox",
+  );
+  const itemsPerPageInput = document.getElementById("items-per-page-input");
 
   // --- Central Application State ---
   const appState = {
@@ -40,6 +48,8 @@ document.addEventListener("DOMContentLoaded", () => {
     selectedVideoIds: new Set(),
     searchTerm: "",
     sort: { field: "dateAdded", direction: "desc" },
+    currentPage: 1,
+    settings: {},
     currentlyEditingVideoId: null,
     tagEditor: {
       isOpen: false,
@@ -58,7 +68,7 @@ document.addEventListener("DOMContentLoaded", () => {
     editView.classList.add("hidden");
     settingsView.classList.add("hidden");
     mainView.classList.remove("hidden");
-    renderVideoList(); // Always re-render when switching views
+    renderAll();
   }
 
   function showSettingsView() {
@@ -70,21 +80,18 @@ document.addEventListener("DOMContentLoaded", () => {
   function showEditView(video) {
     appState.currentlyEditingVideoId = video.id;
 
-    // Populate form fields
     editTitleInput.value = video.title;
     editUrlInput.value = video.url;
     editCleanUrlInput.value = video.cleanUrl;
 
-    // Render tags for the video being edited
     editTagsContainer.innerHTML = "";
     video.tags.forEach((tagName) => {
-      const tagPill = createTagPill(tagName, video.id);
-      editTagsContainer.appendChild(tagPill);
+      editTagsContainer.appendChild(createTagPill(tagName, video.id));
     });
     const addTagBtn = document.createElement("button");
     addTagBtn.className = "add-tag-btn";
     addTagBtn.textContent = "+ Add Tag";
-    addTagBtn.type = "button"; // Prevent form submission
+    addTagBtn.type = "button";
     addTagBtn.addEventListener("click", (e) =>
       showTagEditor([video.id], e.currentTarget),
     );
@@ -99,7 +106,16 @@ document.addEventListener("DOMContentLoaded", () => {
   // RENDER LOGIC
   // ===================================================================
 
-  function getVisibleVideos() {
+  function renderAll() {
+    const fullFilteredList = getFilteredAndSortedVideos();
+    const paginatedList = getPaginatedVideos(fullFilteredList);
+
+    renderVideoList(paginatedList);
+    renderBulkActionsBar(fullFilteredList);
+    renderPaginationControls(fullFilteredList);
+  }
+
+  function getFilteredAndSortedVideos() {
     let videos = [...appState.allVideos];
     const term = appState.searchTerm;
 
@@ -142,9 +158,21 @@ document.addEventListener("DOMContentLoaded", () => {
     return videos;
   }
 
-  function renderVideoList() {
+  function getPaginatedVideos(fullList) {
+    if (
+      !appState.settings.pagination ||
+      !appState.settings.pagination.enabled
+    ) {
+      return fullList;
+    }
+    const { pageSize } = appState.settings.pagination;
+    const start = (appState.currentPage - 1) * pageSize;
+    const end = start + pageSize;
+    return fullList.slice(start, end);
+  }
+
+  function renderVideoList(videosToRender) {
     videoListElement.innerHTML = "";
-    const videosToRender = getVisibleVideos();
 
     if (videosToRender.length === 0) {
       const li = document.createElement("li");
@@ -237,16 +265,12 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  function renderBulkActionsBar() {
+  function renderBulkActionsBar(fullFilteredList) {
     const count = appState.selectedVideoIds.size;
-    if (count > 0) {
-      selectionCountSpan.textContent = `${count} selected`;
-      bulkActionsBar.classList.remove("hidden");
-    } else {
-      bulkActionsBar.classList.add("hidden");
-    }
+    bulkActionsBar.classList.toggle("hidden", count === 0);
+    if (count > 0) selectionCountSpan.textContent = `${count} selected`;
 
-    const visibleIds = getVisibleVideos().map((v) => v.id);
+    const visibleIds = fullFilteredList.map((v) => v.id);
     if (visibleIds.length === 0) {
       selectAllCheckbox.checked = false;
       selectAllCheckbox.indeterminate = false;
@@ -260,16 +284,33 @@ document.addEventListener("DOMContentLoaded", () => {
       appState.selectedVideoIds.has(id),
     );
 
-    if (allVisibleSelected) {
-      selectAllCheckbox.checked = true;
-      selectAllCheckbox.indeterminate = false;
-    } else if (someVisibleSelected) {
-      selectAllCheckbox.checked = false;
-      selectAllCheckbox.indeterminate = true;
-    } else {
-      selectAllCheckbox.checked = false;
-      selectAllCheckbox.indeterminate = false;
+    selectAllCheckbox.checked = allVisibleSelected;
+    selectAllCheckbox.indeterminate =
+      !allVisibleSelected && someVisibleSelected;
+  }
+
+  function renderPaginationControls(fullFilteredList) {
+    if (
+      !appState.settings.pagination ||
+      !appState.settings.pagination.enabled
+    ) {
+      paginationControls.classList.add("hidden");
+      return;
     }
+
+    const { pageSize } = appState.settings.pagination;
+    const totalItems = fullFilteredList.length;
+    const totalPages = Math.ceil(totalItems / pageSize);
+
+    if (totalPages <= 1) {
+      paginationControls.classList.add("hidden");
+      return;
+    }
+
+    paginationControls.classList.remove("hidden");
+    pageInfoSpan.textContent = `Page ${appState.currentPage} of ${totalPages}`;
+    prevPageBtn.disabled = appState.currentPage === 1;
+    nextPageBtn.disabled = appState.currentPage === totalPages;
   }
 
   // ===================================================================
@@ -298,9 +339,9 @@ document.addEventListener("DOMContentLoaded", () => {
   function filterByTag(tagName) {
     searchBox.value = `tag:${tagName}`;
     appState.searchTerm = `tag:${tagName}`;
+    appState.currentPage = 1;
     clearSearchBtn.classList.remove("hidden");
-    renderVideoList();
-    renderBulkActionsBar();
+    renderAll();
   }
 
   function handleSelectionChange(videoId) {
@@ -309,8 +350,9 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
       appState.selectedVideoIds.add(videoId);
     }
-    renderVideoList(); // Re-render to update the 'selected' class on <li>
-    renderBulkActionsBar();
+    // Only need to re-render the list items and bulk bar, not the whole page
+    renderVideoList(getPaginatedVideos(getFilteredAndSortedVideos()));
+    renderBulkActionsBar(getFilteredAndSortedVideos());
   }
 
   function showTagEditor(videoIds, anchorElement) {
@@ -321,7 +363,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
     tagSearchInput.value = "";
     tagEditorPopover.classList.remove("hidden");
-    renderTagSuggestions(); // Render once to get height
+    renderTagSuggestions();
 
     const rect = anchorElement.getBoundingClientRect();
     const popoverHeight = tagEditorPopover.offsetHeight;
@@ -358,7 +400,7 @@ document.addEventListener("DOMContentLoaded", () => {
       tagSuggestionsList.appendChild(li);
     });
 
-    if (query && !suggestions.includes(query)) {
+    if (query && !suggestions.map((s) => s.toLowerCase()).includes(query)) {
       const li = document.createElement("li");
       li.innerHTML = `Create new tag: "<strong>${query}</strong>"`;
       li.addEventListener("click", () => {
@@ -367,6 +409,31 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       tagSuggestionsList.appendChild(li);
     }
+  }
+
+  // ===================================================================
+  // SETTINGS MANAGEMENT
+  // ===================================================================
+
+  function populateSettingsForm() {
+    const { enabled, pageSize } = appState.settings.pagination;
+    paginationEnabledCheckbox.checked = enabled;
+    itemsPerPageInput.value = pageSize;
+    itemsPerPageInput.disabled = !enabled;
+  }
+
+  async function handleSettingsChange() {
+    const newSettings = {
+      pagination: {
+        enabled: paginationEnabledCheckbox.checked,
+        pageSize: parseInt(itemsPerPageInput.value, 10) || 50,
+      },
+    };
+    appState.settings = newSettings;
+    appState.currentPage = 1;
+    populateSettingsForm();
+    await storage.setSettings(newSettings);
+    renderAll();
   }
 
   // ===================================================================
@@ -398,72 +465,70 @@ document.addEventListener("DOMContentLoaded", () => {
       video.tags.forEach((tag) => appState.allTags.add(tag)),
     );
 
-    // If edit view is open, check if the video still exists
     if (appState.currentlyEditingVideoId) {
       const currentlyEditingVideo = videos.find(
         (v) => v.id === appState.currentlyEditingVideoId,
       );
       if (currentlyEditingVideo) {
-        showEditView(currentlyEditingVideo); // Refresh view with new data
+        showEditView(currentlyEditingVideo);
       } else {
-        showMainView(); // Video was deleted, go back to list
+        showMainView();
       }
     } else {
-      renderVideoList();
-      renderBulkActionsBar();
+      renderAll();
     }
   }
 
-  // Listen for changes from other extension parts (e.g., background script)
   browser.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && changes.videos) {
       handleStateUpdate(changes.videos.newValue || []);
+    } else if (area === "local" && changes.settings) {
+      appState.settings = changes.settings.newValue;
+      populateSettingsForm();
+      renderAll();
     }
   });
 
-  // Search and Sort controls
   searchBox.addEventListener("input", () => {
     appState.searchTerm = searchBox.value;
+    appState.currentPage = 1;
     clearSearchBtn.classList.toggle("hidden", !searchBox.value);
-    renderVideoList();
-    renderBulkActionsBar();
+    renderAll();
   });
 
   clearSearchBtn.addEventListener("click", () => {
     searchBox.value = "";
     appState.searchTerm = "";
+    appState.currentPage = 1;
     clearSearchBtn.classList.add("hidden");
     searchBox.focus();
-    renderVideoList();
-    renderBulkActionsBar();
+    renderAll();
   });
 
   sortSelect.addEventListener("change", (e) => {
     const [field, direction] = e.target.value.split("_");
     appState.sort = { field, direction };
-    renderVideoList();
+    appState.currentPage = 1;
+    renderAll();
   });
 
-  // Bulk selection controls
   selectAllCheckbox.addEventListener("change", (e) => {
-    const visibleIds = getVisibleVideos().map((v) => v.id);
+    const visibleIds = getFilteredAndSortedVideos().map((v) => v.id);
     if (e.target.checked) {
       visibleIds.forEach((id) => appState.selectedVideoIds.add(id));
     } else {
       visibleIds.forEach((id) => appState.selectedVideoIds.delete(id));
     }
-    renderVideoList();
-    renderBulkActionsBar();
+    renderAll();
   });
 
   deselectAllBtn.addEventListener("click", () => {
     appState.selectedVideoIds.clear();
-    renderVideoList();
-    renderBulkActionsBar();
+    renderAll();
   });
 
   invertSelectionBtn.addEventListener("click", () => {
-    const visibleIds = getVisibleVideos().map((v) => v.id);
+    const visibleIds = getFilteredAndSortedVideos().map((v) => v.id);
     visibleIds.forEach((id) => {
       if (appState.selectedVideoIds.has(id)) {
         appState.selectedVideoIds.delete(id);
@@ -471,11 +536,9 @@ document.addEventListener("DOMContentLoaded", () => {
         appState.selectedVideoIds.add(id);
       }
     });
-    renderVideoList();
-    renderBulkActionsBar();
+    renderAll();
   });
 
-  // Bulk action buttons
   bulkAddTagBtn.addEventListener("click", (e) => {
     showTagEditor(Array.from(appState.selectedVideoIds), e.currentTarget);
   });
@@ -484,11 +547,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const count = appState.selectedVideoIds.size;
     if (confirm(`Are you sure you want to delete ${count} selected videos?`)) {
       storage.deleteVideosByIds(Array.from(appState.selectedVideoIds));
-      appState.selectedVideoIds.clear(); // Clear selection immediately for UI responsiveness
+      appState.selectedVideoIds.clear();
     }
   });
 
-  // Edit form and Tag Editor controls
   editForm.addEventListener("submit", handleSaveEdit);
   cancelEditBtn.addEventListener("click", showMainView);
   closeTagEditorBtn.addEventListener("click", hideTagEditor);
@@ -503,7 +565,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Settings page controls
   settingsBtn.addEventListener("click", showSettingsView);
   backToListBtn.addEventListener("click", showMainView);
 
@@ -551,6 +612,27 @@ document.addEventListener("DOMContentLoaded", () => {
     reader.readAsText(file);
   });
 
+  prevPageBtn.addEventListener("click", () => {
+    if (appState.currentPage > 1) {
+      appState.currentPage--;
+      renderAll();
+    }
+  });
+
+  nextPageBtn.addEventListener("click", () => {
+    const totalPages = Math.ceil(
+      getFilteredAndSortedVideos().length /
+        appState.settings.pagination.pageSize,
+    );
+    if (appState.currentPage < totalPages) {
+      appState.currentPage++;
+      renderAll();
+    }
+  });
+
+  paginationEnabledCheckbox.addEventListener("change", handleSettingsChange);
+  itemsPerPageInput.addEventListener("change", handleSettingsChange);
+
   // ===================================================================
   // INITIALIZATION
   // ===================================================================
@@ -558,6 +640,9 @@ document.addEventListener("DOMContentLoaded", () => {
   async function init() {
     const manifest = browser.runtime.getManifest();
     versionDisplay.textContent = manifest.version;
+
+    appState.settings = await storage.getSettings();
+    populateSettingsForm();
 
     const initialVideos = await storage.getVideos();
     handleStateUpdate(initialVideos);

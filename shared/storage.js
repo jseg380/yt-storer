@@ -1,4 +1,14 @@
 /**
+ * The default settings.
+ */
+const DEFAULT_SETTINGS = {
+  pagination: {
+    enabled: false,
+    pageSize: 50,
+  },
+};
+
+/**
  * Migrates the video data to the latest format.
  * This is the single source of truth for the data model.
  * @param {Array} videos The array of video objects.
@@ -129,4 +139,25 @@ export async function removeTagFromVideo(tagName, videoId) {
     video.tags = video.tags.filter((t) => t !== tagName);
     await setVideos(videos);
   }
+}
+
+/**
+ * Fetches the user's settings from storage.
+ * @returns {Promise<object>} A promise that resolves to the settings object.
+ */
+export async function getSettings() {
+  const result = await browser.storage.local.get({
+    settings: DEFAULT_SETTINGS,
+  });
+  // Merge defaults to ensure new settings are applied for existing users
+  return { ...DEFAULT_SETTINGS, ...result.settings };
+}
+
+/**
+ * Saves the user's settings to storage.
+ * @param {object} settings The settings object to save.
+ * @returns {Promise<void>}
+ */
+export async function setSettings(settings) {
+  await browser.storage.local.set({ settings });
 }
