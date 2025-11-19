@@ -1,3 +1,5 @@
+import { normalizeText } from "../shared/list-logic.js";
+
 document.addEventListener("DOMContentLoaded", () => {
   // --- DOM Element References (Fused from both files) ---
   const mainView = document.getElementById("main-view");
@@ -80,15 +82,39 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // 1. Filter
     let videosToRender = [...allVideos];
-    const searchTerm = searchBox.value.toLowerCase();
+    const rawSearchTerm = searchBox.value;
 
-    if (searchTerm.startsWith("tag:")) {
-      const tagName = searchTerm.substring(4).trim();
+    if (rawSearchTerm.toLowerCase().startsWith("tag:")) {
+      const tagName = rawSearchTerm.substring(4).trim();
       videosToRender = videosToRender.filter((v) => v.tags.includes(tagName));
-    } else if (searchTerm) {
-      videosToRender = videosToRender.filter((v) =>
-        v.title.toLowerCase().includes(searchTerm),
+    } else if (rawSearchTerm) {
+      const searchTermLower = rawSearchTerm.toLowerCase();
+
+      // --- Stage 1: Fast, exact substring search ---
+      let primaryResults = videosToRender.filter((v) =>
+        v.title.toLowerCase().includes(searchTermLower),
       );
+
+      if (primaryResults.length > 0) {
+        videosToRender = primaryResults;
+      } else {
+        // --- Stage 2: Fuzzy search (if Stage 1 yields no results) ---
+        const normalizedQuery = normalizeText(rawSearchTerm);
+        const searchTerms = normalizedQuery
+          .split(" ")
+          .filter((term) => term.length > 0);
+
+        if (searchTerms.length > 0) {
+          videosToRender = videosToRender.filter((video) => {
+            const normalizedTitle = normalizeText(video.title);
+            // Check if every search term is present in the normalized title
+            return searchTerms.every((term) => normalizedTitle.includes(term));
+          });
+        } else {
+          // If the query was only punctuation/whitespace, show no results
+          videosToRender = [];
+        }
+      }
     }
 
     // 2. Sort
@@ -110,7 +136,7 @@ document.addEventListener("DOMContentLoaded", () => {
       li.textContent =
         allVideos.length === 0
           ? "Right-click a YouTube video page to store it."
-          : `No videos found for "${searchTerm}"`;
+          : `No videos found for "${rawSearchTerm}"`;
       videoListElement.appendChild(li);
       return;
     }
