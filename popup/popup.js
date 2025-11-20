@@ -6,6 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const searchBox = document.getElementById("search-box");
   const manageBtn = document.getElementById("manage-btn");
   let allVideos = [];
+  let allTags = new Map(); // Use a map for quick lookups
 
   // The popup has its own simple renderer now.
   function render() {
@@ -77,13 +78,17 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function init() {
-    allVideos = await storage.getVideos();
+    const data = await storage.getData();
+    allVideos = data.videos || [];
+    allTags = new Map((data.tags || []).map((tag) => [tag.id, tag]));
     render();
   }
 
   browser.storage.onChanged.addListener(async (changes, area) => {
-    if (area === "local" && changes.videos) {
-      allVideos = changes.videos.newValue || [];
+    if (area === "local" && changes.ytStorerData) {
+      const data = changes.ytStorerData.newValue || {};
+      allVideos = data.videos || [];
+      allTags = new Map((data.tags || []).map((tag) => [tag.id, tag]));
       render();
     }
   });

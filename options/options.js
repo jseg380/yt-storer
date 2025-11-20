@@ -54,11 +54,12 @@ document.addEventListener("DOMContentLoaded", () => {
     "tag-filter-suggestions-list",
   );
   const randomVideoBtn = document.getElementById("random-video-btn");
+  const tagManagementList = document.getElementById("tag-management-list");
 
   // --- Central Application State ---
   const appState = {
     allVideos: [],
-    allTags: new Set(),
+    allTags: new Map(),
     selectedVideoIds: new Set(),
     searchTerm: "",
     sort: { field: "dateAdded", direction: "desc" },
@@ -66,6 +67,7 @@ document.addEventListener("DOMContentLoaded", () => {
     excludeTags: new Set(),
     currentPage: 1,
     settings: {},
+    recentlyUsedTags: [], // Array of tag IDs, most recent first
     currentlyEditingVideoId: null,
     tagEditor: {
       isOpen: false,
@@ -73,6 +75,17 @@ document.addEventListener("DOMContentLoaded", () => {
       anchorElement: null,
     },
   };
+
+  // --- Helper Functions ---
+  function getTagTextColor(hexColor) {
+    if (!hexColor || hexColor.length < 7) return "#0f0f0f"; // Default to dark text
+    const r = parseInt(hexColor.substr(1, 2), 16);
+    const g = parseInt(hexColor.substr(3, 2), 16);
+    const b = parseInt(hexColor.substr(5, 2), 16);
+    // Formula to determine perceived brightness
+    const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+    return yiq >= 128 ? "#0f0f0f" : "#ffffff"; // Return black for light colors, white for dark colors
+  }
 
   // ===================================================================
   // VIEW SWITCHING
@@ -101,8 +114,8 @@ document.addEventListener("DOMContentLoaded", () => {
     editCleanUrlInput.value = video.cleanUrl;
 
     editTagsContainer.innerHTML = "";
-    video.tags.forEach((tagName) => {
-      editTagsContainer.appendChild(createTagPill(tagName, video.id));
+    video.tags.forEach((tagId) => {
+      editTagsContainer.appendChild(createTagPill(tagId, video.id));
     });
     const addTagBtn = document.createElement("button");
     addTagBtn.className = "add-tag-btn";
@@ -140,7 +153,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (appState.filterTags.size > 0) {
       const filterTagsArray = [...appState.filterTags];
       videos = videos.filter((video) =>
-        filterTagsArray.every((tag) => video.tags.includes(tag)),
+        filterTagsArray.every((tagId) => video.tags.includes(tagId)),
       );
     }
 
@@ -148,7 +161,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (appState.excludeTags.size > 0) {
       const excludeTagsArray = [...appState.excludeTags];
       videos = videos.filter(
-        (video) => !excludeTagsArray.some((tag) => video.tags.includes(tag)),
+        (video) =>
+          !excludeTagsArray.some((tagId) => video.tags.includes(tagId)),
       );
     }
 
@@ -212,7 +226,7 @@ document.addEventListener("DOMContentLoaded", () => {
       li.textContent =
         appState.allVideos.length === 0
           ? "Right-click a YouTube video page to store it."
-          : `No videos found for "${appState.searchTerm}"`;
+          : `No videos found for your search/filter criteria.`;
       videoListElement.appendChild(li);
       return;
     }
@@ -248,8 +262,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const tagsContainer = document.createElement("div");
       tagsContainer.className = "tags-container";
-      video.tags.forEach((tagName) => {
-        tagsContainer.appendChild(createTagPill(tagName, video.id));
+      video.tags.forEach((tagId) => {
+        tagsContainer.appendChild(createTagPill(tagId, video.id));
       });
       const addTagBtn = document.createElement("button");
       addTagBtn.className = "add-tag-btn";
@@ -348,36 +362,37 @@ document.addEventListener("DOMContentLoaded", () => {
   // ===================================================================
   // UI COMPONENT LOGIC (Tags, Selection, etc.)
   // ===================================================================
+  function createTagPill(tagId, videoId) {
+    const tag = appState.allTags.get(tagId);
+    if (!tag) return document.createDocumentFragment(); // Return empty fragment if tag not found
 
-  function createTagPill(tagName, videoId) {
     const pill = document.createElement("span");
     pill.className = "tag-pill";
-    pill.textContent = tagName;
-    pill.addEventListener("click", () => filterByTag(tagName));
+    pill.textContent = tag.name;
+    pill.style.setProperty("--tag-color", tag.color);
+    pill.style.setProperty("--tag-text-color", getTagTextColor(tag.color));
+    pill.addEventListener("click", () => filterByTag(tag.id));
 
     const removeBtn = document.createElement("button");
     removeBtn.className = "remove-tag-btn";
     removeBtn.textContent = "×";
-    removeBtn.title = `Remove tag "${tagName}"`;
+    removeBtn.title = `Remove tag "${tag.name}"`;
     removeBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      storage.removeTagFromVideo(tagName, videoId);
+      storage.removeTagFromVideo(tag.id, videoId);
     });
 
     pill.appendChild(removeBtn);
     return pill;
   }
 
-  function filterByTag(tagName) {
+  function filterByTag(tagId) {
     // This function is called when clicking a tag pill on a video item
-    if (
-      !appState.filterTags.has(tagName) &&
-      !appState.excludeTags.has(tagName)
-    ) {
-      appState.filterTags.add(tagName);
+    if (!appState.filterTags.has(tagId) && !appState.excludeTags.has(tagId)) {
+      appState.filterTags.add(tagId);
       appState.currentPage = 1;
       if (filterPanel.classList.contains("collapsed")) {
-        toggleFilterPanel(); // Open the panel for context
+        toggleFilterPanel();
       }
       renderAll();
     }
@@ -418,32 +433,58 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function hideTagEditor() {
-    appState.tagEditor.isOpen = false;
-    tagEditorPopover.classList.add("hidden");
+    if (appState.tagEditor.isOpen) {
+      appState.tagEditor.isOpen = false;
+      tagEditorPopover.classList.add("hidden");
+    }
   }
 
   function renderTagSuggestions() {
     tagSuggestionsList.innerHTML = "";
     const query = tagSearchInput.value.toLowerCase().trim();
-    const suggestions = [...appState.allTags].filter((tag) =>
-      tag.toLowerCase().includes(query),
+    let suggestions = [...appState.allTags.values()].filter((tag) =>
+      tag.name.toLowerCase().includes(query),
     );
+
+    suggestions.sort((a, b) => {
+      const idxA = appState.recentlyUsedTags.indexOf(a.id);
+      const idxB = appState.recentlyUsedTags.indexOf(b.id);
+      if (idxA > -1 && idxB > -1) return idxA - idxB;
+      if (idxA > -1) return -1;
+      if (idxB > -1) return 1;
+      return a.name.localeCompare(b.name);
+    });
 
     suggestions.forEach((tag) => {
       const li = document.createElement("li");
-      li.textContent = tag;
+      li.textContent = tag.name;
       li.addEventListener("click", () => {
-        storage.addTagToVideos(tag, appState.tagEditor.targetVideoIds);
+        storage.addTagToVideos(tag.id, appState.tagEditor.targetVideoIds);
+        appState.recentlyUsedTags.unshift(tag.id);
+        appState.recentlyUsedTags = [
+          ...new Set(appState.recentlyUsedTags),
+        ].slice(0, 10); // Keep unique & recent
         hideTagEditor();
       });
       tagSuggestionsList.appendChild(li);
     });
 
-    if (query && !suggestions.map((s) => s.toLowerCase()).includes(query)) {
+    const exactMatch = [...appState.allTags.values()].some(
+      (t) => t.name.toLowerCase() === query,
+    );
+    if (query && !exactMatch) {
       const li = document.createElement("li");
       li.innerHTML = `Create new tag: "<strong>${query}</strong>"`;
-      li.addEventListener("click", () => {
-        storage.addTagToVideos(query, appState.tagEditor.targetVideoIds);
+      li.addEventListener("click", async () => {
+        const newTag = await storage.createTag(query);
+        await storage.addTagToVideos(
+          newTag.id,
+          appState.tagEditor.targetVideoIds,
+        );
+        appState.recentlyUsedTags.unshift(newTag.id);
+        appState.recentlyUsedTags = [
+          ...new Set(appState.recentlyUsedTags),
+        ].slice(0, 10);
         hideTagEditor();
       });
       tagSuggestionsList.appendChild(li);
@@ -451,41 +492,43 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function toggleFilterPanel() {
-    const isExpanded = filterPanel.classList.toggle("collapsed");
-    toggleFilterBtn.setAttribute("aria-expanded", !isExpanded);
+    const isCollapsed = filterPanel.classList.toggle("collapsed");
+    toggleFilterBtn.setAttribute("aria-expanded", !isCollapsed);
   }
 
   function renderFilterTags() {
     selectedFilterTagsContainer.innerHTML = "";
-    appState.filterTags.forEach((tag) => {
-      const pill = createFilterTagPill(tag, false);
-      selectedFilterTagsContainer.appendChild(pill);
+    appState.filterTags.forEach((tagId) => {
+      selectedFilterTagsContainer.appendChild(
+        createFilterTagPill(tagId, false),
+      );
     });
-    appState.excludeTags.forEach((tag) => {
-      const pill = createFilterTagPill(tag, true);
-      selectedFilterTagsContainer.appendChild(pill);
+    appState.excludeTags.forEach((tagId) => {
+      selectedFilterTagsContainer.appendChild(createFilterTagPill(tagId, true));
     });
   }
 
-  function createFilterTagPill(tagName, isExclude) {
+  function createFilterTagPill(tagId, isExclude) {
+    const tag = appState.allTags.get(tagId);
+    if (!tag) return document.createDocumentFragment();
+
     const pill = document.createElement("span");
     pill.className = `tag-pill ${isExclude ? "exclude-tag" : ""}`;
 
-    // FIX: Wrap the text content in its own span
     const textSpan = document.createElement("span");
-    textSpan.textContent = tagName;
+    textSpan.textContent = tag.name;
     pill.appendChild(textSpan);
+
+    pill.style.setProperty("--tag-color", tag.color);
+    pill.style.setProperty("--tag-text-color", getTagTextColor(tag.color));
 
     const removeBtn = document.createElement("button");
     removeBtn.className = "remove-tag-btn";
     removeBtn.textContent = "×";
-    removeBtn.title = `Remove filter "${tagName}"`;
+    removeBtn.title = `Remove filter "${tag.name}"`;
     removeBtn.addEventListener("click", () => {
-      if (isExclude) {
-        appState.excludeTags.delete(tagName);
-      } else {
-        appState.filterTags.delete(tagName);
-      }
+      if (isExclude) appState.excludeTags.delete(tagId);
+      else appState.filterTags.delete(tagId);
       appState.currentPage = 1;
       renderAll();
     });
@@ -497,14 +540,15 @@ document.addEventListener("DOMContentLoaded", () => {
   function renderTagFilterSuggestions() {
     const query = tagFilterInput.value.toLowerCase().trim();
 
-    const availableTags = [...appState.allTags].filter(
-      (tag) => !appState.filterTags.has(tag) && !appState.excludeTags.has(tag),
+    const availableTags = [...appState.allTags.values()].filter(
+      (tag) =>
+        !appState.filterTags.has(tag.id) && !appState.excludeTags.has(tag.id),
     );
 
     // If query is empty, this will include all available tags.
     // If query has text, it will filter them.
     const suggestions = availableTags.filter((tag) =>
-      tag.toLowerCase().includes(query),
+      tag.name.toLowerCase().includes(query),
     );
 
     tagFilterSuggestionsList.innerHTML = "";
@@ -515,13 +559,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     suggestions.forEach((tag) => {
       const li = document.createElement("li");
-      li.textContent = tag;
+      li.textContent = tag.name;
       li.addEventListener("click", () => {
-        if (notOperatorToggle.checked) {
-          appState.excludeTags.add(tag);
-        } else {
-          appState.filterTags.add(tag);
-        }
+        if (notOperatorToggle.checked) appState.excludeTags.add(tag.id);
+        else appState.filterTags.add(tag.id);
         tagFilterInput.value = "";
         tagFilterSuggestionsPopover.classList.add("hidden");
         appState.currentPage = 1;
@@ -559,8 +600,67 @@ document.addEventListener("DOMContentLoaded", () => {
     appState.settings = newSettings;
     appState.currentPage = 1;
     populateSettingsForm();
-    await storage.setSettings(newSettings);
+    await storage.updateSettings(newSettings);
     renderAll();
+  }
+
+  function renderTagManagementList() {
+    tagManagementList.innerHTML = "";
+    const tags = [...appState.allTags.values()].sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+    );
+
+    tags.forEach((tag) => {
+      const li = document.createElement("li");
+      li.title = "Click to edit";
+
+      const swatch = document.createElement("div");
+      swatch.className = "tag-color-swatch";
+      swatch.style.backgroundColor = tag.color;
+
+      const name = document.createElement("span");
+      name.className = "tag-edit-name";
+      name.textContent = tag.name;
+
+      li.appendChild(swatch);
+      li.appendChild(name);
+      li.addEventListener("click", () => editTag(tag));
+      tagManagementList.appendChild(li);
+    });
+  }
+
+  function editTag(tag) {
+    const newName = prompt(
+      `Enter new name for tag "${tag.name}" (or cancel to leave unchanged):`,
+      tag.name,
+    );
+
+    if (newName === null) return; // User cancelled the first prompt
+
+    const cleanNewName = newName.trim();
+    if (cleanNewName === "") {
+      alert("Tag name cannot be empty.");
+      return;
+    }
+
+    const colorInput = document.createElement("input");
+    colorInput.type = "color";
+    colorInput.value = tag.color;
+
+    colorInput.addEventListener(
+      "change",
+      () => {
+        storage.updateTag(tag.id, {
+          name: cleanNewName,
+          color: colorInput.value,
+        });
+        // The storage.onChanged listener will handle the UI update.
+      },
+      { once: true },
+    );
+
+    // A trick to open the color picker dialog
+    colorInput.click();
   }
 
   // ===================================================================
@@ -585,15 +685,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 1500);
   }
 
-  function handleStateUpdate(videos) {
-    appState.allVideos = videos;
-    appState.allTags.clear();
-    videos.forEach((video) =>
-      video.tags.forEach((tag) => appState.allTags.add(tag)),
-    );
+  function handleStateUpdate(data) {
+    appState.allVideos = data.videos || [];
+    appState.allTags = new Map((data.tags || []).map((tag) => [tag.id, tag]));
+    appState.settings = data.settings || DEFAULT_DATA_STRUCTURE.settings;
 
     if (appState.currentlyEditingVideoId) {
-      const currentlyEditingVideo = videos.find(
+      const currentlyEditingVideo = appState.allVideos.find(
         (v) => v.id === appState.currentlyEditingVideoId,
       );
       if (currentlyEditingVideo) {
@@ -604,30 +702,14 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
       renderAll();
     }
-  }
-
-  function handleRandomVideoClick() {
-    const visibleVideos = getFilteredAndSortedVideos();
-
-    if (visibleVideos.length === 0) {
-      // You could optionally add a subtle notification here, but for now, just do nothing.
-      return;
-    }
-
-    const randomIndex = Math.floor(Math.random() * visibleVideos.length);
-    const randomVideo = visibleVideos[randomIndex];
-
-    // Open the raw URL (with timestamp, etc.) in a new active tab.
-    browser.tabs.create({ url: randomVideo.url });
+    renderTagManagementList();
   }
 
   browser.storage.onChanged.addListener((changes, area) => {
-    if (area === "local" && changes.videos) {
-      handleStateUpdate(changes.videos.newValue || []);
-    } else if (area === "local" && changes.settings) {
-      appState.settings = changes.settings.newValue;
-      populateSettingsForm();
-      renderAll();
+    if (area === "local" && changes.ytStorerData) {
+      handleStateUpdate(
+        changes.ytStorerData.newValue || DEFAULT_DATA_STRUCTURE,
+      );
     }
   });
 
@@ -697,20 +779,7 @@ document.addEventListener("DOMContentLoaded", () => {
   cancelEditBtn.addEventListener("click", showMainView);
   closeTagEditorBtn.addEventListener("click", hideTagEditor);
   tagSearchInput.addEventListener("input", renderTagSuggestions);
-
-  // Filter Panel Listeners
-  toggleFilterBtn.addEventListener("click", toggleFilterPanel);
-  tagFilterInput.addEventListener("input", renderTagFilterSuggestions);
-  tagFilterInput.addEventListener("focus", renderTagFilterSuggestions);
-
   document.addEventListener("click", (e) => {
-    // Hide tag filter suggestions if click is outside
-    if (
-      !tagFilterInput.contains(e.target) &&
-      !tagFilterSuggestionsPopover.contains(e.target)
-    ) {
-      tagFilterSuggestionsPopover.classList.add("hidden");
-    }
     if (
       appState.tagEditor.isOpen &&
       !tagEditorPopover.contains(e.target) &&
@@ -718,15 +787,21 @@ document.addEventListener("DOMContentLoaded", () => {
     ) {
       hideTagEditor();
     }
+    if (
+      !tagFilterInput.contains(e.target) &&
+      !tagFilterSuggestionsPopover.contains(e.target)
+    ) {
+      tagFilterSuggestionsPopover.classList.add("hidden");
+    }
   });
 
   settingsBtn.addEventListener("click", showSettingsView);
   backToListBtn.addEventListener("click", showMainView);
 
-  exportBtn.addEventListener("click", () => {
-    if (appState.allVideos.length === 0)
-      return alert("Your video list is empty.");
-    const jsonString = JSON.stringify(appState.allVideos, null, 2);
+  exportBtn.addEventListener("click", async () => {
+    const data = await storage.getData(); // Get the freshest data
+    if (data.videos.length === 0) return alert("Your video list is empty.");
+    const jsonString = JSON.stringify(data, null, 2);
     const blob = new Blob([jsonString], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -749,17 +824,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
-        const importedVideos = JSON.parse(e.target.result);
-        if (
-          !Array.isArray(importedVideos) ||
-          (importedVideos.length > 0 && !importedVideos[0].id)
-        ) {
-          throw new Error("Invalid file format.");
-        }
-        await storage.setVideos(importedVideos);
-        alert(`Successfully imported ${importedVideos.length} videos.`);
+        const importedJson = JSON.parse(e.target.result);
+        const migratedData = storage.migrateData(importedJson); // Use centralized migrator
+        await storage.setData(migratedData);
+        alert(`Successfully imported data.`);
       } catch (error) {
         alert("Import failed. Please use a valid backup file.");
+        console.error("YT Storer: Import error", error);
       } finally {
         event.target.value = "";
       }
@@ -788,7 +859,17 @@ document.addEventListener("DOMContentLoaded", () => {
   paginationEnabledCheckbox.addEventListener("change", handleSettingsChange);
   itemsPerPageInput.addEventListener("change", handleSettingsChange);
 
-  randomVideoBtn.addEventListener("click", handleRandomVideoClick);
+  toggleFilterBtn.addEventListener("click", toggleFilterPanel);
+  tagFilterInput.addEventListener("input", renderTagFilterSuggestions);
+  tagFilterInput.addEventListener("focus", renderTagFilterSuggestions);
+
+  randomVideoBtn.addEventListener("click", () => {
+    const visibleVideos = getFilteredAndSortedVideos();
+    if (visibleVideos.length === 0) return;
+    const randomIndex = Math.floor(Math.random() * visibleVideos.length);
+    const randomVideo = visibleVideos[randomIndex];
+    browser.tabs.create({ url: randomVideo.url });
+  });
 
   // ===================================================================
   // INITIALIZATION
@@ -798,11 +879,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const manifest = browser.runtime.getManifest();
     versionDisplay.textContent = manifest.version;
 
-    appState.settings = await storage.getSettings();
-    populateSettingsForm();
-
-    const initialVideos = await storage.getVideos();
-    handleStateUpdate(initialVideos);
+    const initialData = await storage.getData();
+    handleStateUpdate(initialData);
   }
 
   init();

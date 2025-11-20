@@ -410,7 +410,7 @@ body {
 /* Styles for list items (overriding shared/common.css) */
 li {
     padding: 8px 12px !important;
-    /* CHANGED: Use Flexbox for layout */
+    /* Use Flexbox for layout */
     display: flex !important;
     gap: 12px;
     /* Align items to the top */
@@ -473,10 +473,14 @@ li.selected {
     font-size: 12px;
     cursor: pointer;
     transition: background-color 0.2s;
+    background-color: var(--tag-color, #f0f0f0); /* Default color */
+    color: var(--tag-text-color, #0f0f0f);
+    font-weight: 500;
 }
 
 .tag-pill:hover {
     background-color: #e0e0e0;
+    filter: brightness(0.9);
 }
 
 .remove-tag-btn {
@@ -505,7 +509,61 @@ li.selected {
     color: #606060;
 }
 
-/* Styles for Edit View - RESTORED */
+.tag-management-list {
+    list-style: none;
+    padding: 0;
+    margin-top: 10px;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+}
+
+.tag-management-list li {
+    display: flex !important;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px !important;
+    cursor: pointer;
+}
+
+.tag-management-list li:not(:last-child) {
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.tag-color-swatch {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    border: 1px solid rgba(0,0,0,0.1);
+    flex-shrink: 0;
+}
+
+.tag-edit-name {
+    flex-grow: 1;
+    font-weight: 500;
+}
+
+/* Simple color picker for editing */
+.tag-edit-color-picker {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    width: 30px;
+    height: 30px;
+    border: none;
+    cursor: pointer;
+    background-color: transparent;
+    padding: 0;
+}
+.tag-edit-color-picker::-webkit-color-swatch {
+    border-radius: 50%;
+    border: 1px solid #ccc;
+}
+.tag-edit-color-picker::-moz-color-swatch {
+    border-radius: 50%;
+    border: 1px solid #ccc;
+}
+
+/* Styles for Edit View */
 #edit-view .header {
     padding: 12px 16px;
     border-bottom: 1px solid #e0e0e0;
@@ -571,7 +629,7 @@ li.selected {
     color: #0f0f0f;
 }
 
-/* Tag Editor Popover (Unchanged) */
+/* Tag Editor Popover */
 .tag-editor-popover {
     position: absolute;
     width: 250px;
