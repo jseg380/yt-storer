@@ -56,9 +56,26 @@ document.addEventListener("DOMContentLoaded", () => {
   const randomVideoBtn = document.getElementById("random-video-btn");
   const tagManagementList = document.getElementById("tag-management-list");
 
+  // View Switcher Buttons
+  const viewBtns = {
+    videos: document.getElementById("view-videos-btn"),
+    playlists: document.getElementById("view-playlists-btn"),
+    channels: document.getElementById("view-channels-btn"),
+  };
+
+  // Visibility Checkboxes
+  const visibilityCheckboxes = {
+    videos: document.getElementById("visibility-videos-checkbox"),
+    playlists: document.getElementById("visibility-playlists-checkbox"),
+    channels: document.getElementById("visibility-channels-checkbox"),
+  };
+
   // --- Central Application State ---
   const appState = {
+    currentView: "videos", // 'videos', 'playlists', 'channels'
     allVideos: [],
+    allPlaylists: [],
+    allChannels: [],
     allTags: new Map(),
     selectedVideoIds: new Set(),
     searchTerm: "",
@@ -146,52 +163,56 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function getFilteredAndSortedVideos() {
-    let videos = [...appState.allVideos];
+    let items = [];
+    if (appState.currentView === "videos") items = [...appState.allVideos];
+    else if (appState.currentView === "playlists") items = [...appState.allPlaylists];
+    else if (appState.currentView === "channels") items = [...appState.allChannels];
+
     const term = appState.searchTerm;
 
     // 1. Filter by included tags (AND logic)
     if (appState.filterTags.size > 0) {
       const filterTagsArray = [...appState.filterTags];
-      videos = videos.filter((video) =>
-        filterTagsArray.every((tagId) => video.tags.includes(tagId)),
+      items = items.filter((item) =>
+        filterTagsArray.every((tagId) => item.tags && item.tags.includes(tagId)),
       );
     }
 
     // 2. Filter by excluded tags (NOT logic)
     if (appState.excludeTags.size > 0) {
       const excludeTagsArray = [...appState.excludeTags];
-      videos = videos.filter(
-        (video) =>
-          !excludeTagsArray.some((tagId) => video.tags.includes(tagId)),
+      items = items.filter(
+        (item) =>
+          !excludeTagsArray.some((tagId) => item.tags && item.tags.includes(tagId)),
       );
     }
 
     // 3. Filter by title (fuzzy search)
     if (term) {
       const termLower = term.toLowerCase();
-      let primaryResults = videos.filter((v) =>
+      let primaryResults = items.filter((v) =>
         v.title.toLowerCase().includes(termLower),
       );
       if (primaryResults.length > 0) {
-        videos = primaryResults;
+        items = primaryResults;
       } else {
         const normalizedQuery = normalizeText(term);
         const searchTerms = normalizedQuery
           .split(" ")
           .filter((t) => t.length > 0);
         if (searchTerms.length > 0) {
-          videos = videos.filter((v) => {
+          items = items.filter((v) => {
             const normalizedTitle = normalizeText(v.title);
             return searchTerms.every((t) => normalizedTitle.includes(t));
           });
         } else {
-          videos = [];
+          items = [];
         }
       }
     }
 
     // 4. Sort the results
-    videos.sort((a, b) => {
+    items.sort((a, b) => {
       const { field, direction } = appState.sort;
       const valA = a[field];
       const valB = b[field];
@@ -201,7 +222,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return direction === "asc" ? comparison : -comparison;
     });
 
-    return videos;
+    return items;
   }
 
   function getPaginatedVideos(fullList) {
@@ -224,9 +245,12 @@ document.addEventListener("DOMContentLoaded", () => {
       const li = document.createElement("li");
       li.className = "empty-message";
       li.textContent =
-        appState.allVideos.length === 0
-          ? "Right-click a YouTube video page to store it."
-          : `No videos found for your search/filter criteria.`;
+        li.textContent =
+        (appState.currentView === "videos" && appState.allVideos.length === 0) ||
+          (appState.currentView === "playlists" && appState.allPlaylists.length === 0) ||
+          (appState.currentView === "channels" && appState.allChannels.length === 0)
+          ? `Right-click a YouTube ${appState.currentView.slice(0, -1)} page to store it.`
+          : `No ${appState.currentView} found for your search/filter criteria.`;
       videoListElement.appendChild(li);
       return;
     }
@@ -297,7 +321,9 @@ document.addEventListener("DOMContentLoaded", () => {
       deleteButton.title = "Delete video";
       deleteButton.addEventListener("click", () => {
         if (confirm(`Are you sure you want to delete "${video.title}"?`)) {
-          storage.deleteVideosByIds([video.id]);
+          if (appState.currentView === "videos") storage.deleteVideosByIds([video.id]);
+          else if (appState.currentView === "playlists") storage.deletePlaylistsByIds([video.id]);
+          else if (appState.currentView === "channels") storage.deleteChannelsByIds([video.id]);
         }
       });
 
@@ -379,7 +405,10 @@ document.addEventListener("DOMContentLoaded", () => {
     removeBtn.title = `Remove tag "${tag.name}"`;
     removeBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      storage.removeTagFromVideo(tag.id, videoId);
+      e.stopPropagation();
+      if (appState.currentView === "videos") storage.removeTagFromVideo(tag.id, videoId);
+      else if (appState.currentView === "playlists") storage.removeTagFromPlaylist(tag.id, videoId);
+      else if (appState.currentView === "channels") storage.removeTagFromChannel(tag.id, videoId);
     });
 
     pill.appendChild(removeBtn);
@@ -459,7 +488,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const li = document.createElement("li");
       li.textContent = tag.name;
       li.addEventListener("click", () => {
-        storage.addTagToVideos(tag.id, appState.tagEditor.targetVideoIds);
+        if (appState.currentView === "videos") storage.addTagToVideos(tag.id, appState.tagEditor.targetVideoIds);
+        else if (appState.currentView === "playlists") storage.addTagToPlaylists(tag.id, appState.tagEditor.targetVideoIds);
+        else if (appState.currentView === "channels") storage.addTagToChannels(tag.id, appState.tagEditor.targetVideoIds);
+
         appState.recentlyUsedTags.unshift(tag.id);
         appState.recentlyUsedTags = [
           ...new Set(appState.recentlyUsedTags),
@@ -477,10 +509,10 @@ document.addEventListener("DOMContentLoaded", () => {
       li.innerHTML = `Create new tag: "<strong>${query}</strong>"`;
       li.addEventListener("click", async () => {
         const newTag = await storage.createTag(query);
-        await storage.addTagToVideos(
-          newTag.id,
-          appState.tagEditor.targetVideoIds,
-        );
+        if (appState.currentView === "videos") await storage.addTagToVideos(newTag.id, appState.tagEditor.targetVideoIds);
+        else if (appState.currentView === "playlists") await storage.addTagToPlaylists(newTag.id, appState.tagEditor.targetVideoIds);
+        else if (appState.currentView === "channels") await storage.addTagToChannels(newTag.id, appState.tagEditor.targetVideoIds);
+
         appState.recentlyUsedTags.unshift(newTag.id);
         appState.recentlyUsedTags = [
           ...new Set(appState.recentlyUsedTags),
@@ -584,10 +616,15 @@ document.addEventListener("DOMContentLoaded", () => {
   // ===================================================================
 
   function populateSettingsForm() {
-    const { enabled, pageSize } = appState.settings.pagination;
+    const { enabled, pageSize } = appState.settings.pagination || { enabled: false, pageSize: 50 };
     paginationEnabledCheckbox.checked = enabled;
     itemsPerPageInput.value = pageSize;
     itemsPerPageInput.disabled = !enabled;
+
+    const visibility = appState.settings.contentVisibility || { videos: true, playlists: true, channels: true };
+    visibilityCheckboxes.videos.checked = visibility.videos;
+    visibilityCheckboxes.playlists.checked = visibility.playlists;
+    visibilityCheckboxes.channels.checked = visibility.channels;
   }
 
   async function handleSettingsChange() {
@@ -596,7 +633,20 @@ document.addEventListener("DOMContentLoaded", () => {
         enabled: paginationEnabledCheckbox.checked,
         pageSize: parseInt(itemsPerPageInput.value, 10) || 50,
       },
+      contentVisibility: {
+        videos: visibilityCheckboxes.videos.checked,
+        playlists: visibilityCheckboxes.playlists.checked,
+        channels: visibilityCheckboxes.channels.checked,
+      }
     };
+
+    // Ensure at least one is visible
+    if (!newSettings.contentVisibility.videos && !newSettings.contentVisibility.playlists && !newSettings.contentVisibility.channels) {
+      alert("At least one content type must be visible.");
+      populateSettingsForm(); // Revert UI
+      return;
+    }
+
     appState.settings = newSettings;
     appState.currentPage = 1;
     populateSettingsForm();
@@ -676,7 +726,10 @@ document.addEventListener("DOMContentLoaded", () => {
       url: editUrlInput.value.trim(),
       cleanUrl: editCleanUrlInput.value.trim(),
     };
-    await storage.updateVideo(appState.currentlyEditingVideoId, updates);
+
+    if (appState.currentView === "videos") await storage.updateVideo(appState.currentlyEditingVideoId, updates);
+    else if (appState.currentView === "playlists") await storage.updatePlaylist(appState.currentlyEditingVideoId, updates);
+    else if (appState.currentView === "channels") await storage.updateChannel(appState.currentlyEditingVideoId, updates);
 
     const saveBtn = document.getElementById("save-edit-btn");
     saveBtn.textContent = "Saved!";
@@ -687,15 +740,37 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function handleStateUpdate(data) {
     appState.allVideos = data.videos || [];
+    appState.allPlaylists = data.playlists || [];
+    appState.allChannels = data.channels || [];
     appState.allTags = new Map((data.tags || []).map((tag) => [tag.id, tag]));
     appState.settings = data.settings || DEFAULT_DATA_STRUCTURE.settings;
 
+    // Update tab visibility
+    if (appState.settings.contentVisibility) {
+      viewBtns.videos.style.display = appState.settings.contentVisibility.videos ? 'inline-block' : 'none';
+      viewBtns.playlists.style.display = appState.settings.contentVisibility.playlists ? 'inline-block' : 'none';
+      viewBtns.channels.style.display = appState.settings.contentVisibility.channels ? 'inline-block' : 'none';
+
+      // Switch view if current is hidden
+      if (appState.settings.contentVisibility[appState.currentView] === false) {
+        if (appState.settings.contentVisibility.videos) switchView('videos');
+        else if (appState.settings.contentVisibility.playlists) switchView('playlists');
+        else if (appState.settings.contentVisibility.channels) switchView('channels');
+      }
+    }
+
     if (appState.currentlyEditingVideoId) {
-      const currentlyEditingVideo = appState.allVideos.find(
+      // Find in current view list
+      let list = [];
+      if (appState.currentView === "videos") list = appState.allVideos;
+      else if (appState.currentView === "playlists") list = appState.allPlaylists;
+      else if (appState.currentView === "channels") list = appState.allChannels;
+
+      const currentlyEditingItem = list.find(
         (v) => v.id === appState.currentlyEditingVideoId,
       );
-      if (currentlyEditingVideo) {
-        showEditView(currentlyEditingVideo);
+      if (currentlyEditingItem) {
+        showEditView(currentlyEditingItem);
       } else {
         showMainView();
       }
@@ -769,8 +844,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   bulkDeleteBtn.addEventListener("click", () => {
     const count = appState.selectedVideoIds.size;
-    if (confirm(`Are you sure you want to delete ${count} selected videos?`)) {
-      storage.deleteVideosByIds(Array.from(appState.selectedVideoIds));
+    if (confirm(`Are you sure you want to delete ${count} selected items?`)) {
+      const ids = Array.from(appState.selectedVideoIds);
+      if (appState.currentView === "videos") storage.deleteVideosByIds(ids);
+      else if (appState.currentView === "playlists") storage.deletePlaylistsByIds(ids);
+      else if (appState.currentView === "channels") storage.deleteChannelsByIds(ids);
+
       appState.selectedVideoIds.clear();
     }
   });
@@ -797,6 +876,29 @@ document.addEventListener("DOMContentLoaded", () => {
 
   settingsBtn.addEventListener("click", showSettingsView);
   backToListBtn.addEventListener("click", showMainView);
+
+  // View Switcher Logic
+  function switchView(viewName) {
+    appState.currentView = viewName;
+    appState.selectedVideoIds.clear();
+    appState.currentPage = 1;
+
+    Object.keys(viewBtns).forEach(key => {
+      if (key === viewName) viewBtns[key].classList.add('active');
+      else viewBtns[key].classList.remove('active');
+    });
+
+    renderAll();
+  }
+
+  viewBtns.videos.addEventListener('click', () => switchView('videos'));
+  viewBtns.playlists.addEventListener('click', () => switchView('playlists'));
+  viewBtns.channels.addEventListener('click', () => switchView('channels'));
+
+  // Settings Change Listeners
+  visibilityCheckboxes.videos.addEventListener('change', handleSettingsChange);
+  visibilityCheckboxes.playlists.addEventListener('change', handleSettingsChange);
+  visibilityCheckboxes.channels.addEventListener('change', handleSettingsChange);
 
   exportBtn.addEventListener("click", async () => {
     const data = await storage.getData(); // Get the freshest data
@@ -848,7 +950,7 @@ document.addEventListener("DOMContentLoaded", () => {
   nextPageBtn.addEventListener("click", () => {
     const totalPages = Math.ceil(
       getFilteredAndSortedVideos().length /
-        appState.settings.pagination.pageSize,
+      appState.settings.pagination.pageSize,
     );
     if (appState.currentPage < totalPages) {
       appState.currentPage++;

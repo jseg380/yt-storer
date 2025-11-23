@@ -60,3 +60,33 @@ h3 {
     font-size: 14px;
     font-weight: 500;
 }
+
+/* View Switcher */
+.view-switcher {
+    display: flex;
+    justify-content: space-around;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 5px;
+    background-color: #ffffff;
+}
+
+.view-btn {
+    background: none;
+    border: none;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #666;
+    border-bottom: 2px solid transparent;
+}
+
+.view-btn:hover {
+    color: #333;
+}
+
+.view-btn.active {
+    color: #cc0000;
+    border-bottom: 2px solid #cc0000;
+    font-weight: bold;
+}

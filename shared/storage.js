@@ -1,15 +1,22 @@
 const DATA_KEY = "ytStorerData";
-const LATEST_SCHEMA_VERSION = 2;
+const LATEST_SCHEMA_VERSION = 3;
 
 // The ideal structure of our data
 const DEFAULT_DATA_STRUCTURE = {
   schemaVersion: LATEST_SCHEMA_VERSION,
   videos: [],
+  playlists: [],
+  channels: [],
   tags: [],
   settings: {
     pagination: {
       enabled: false,
       pageSize: 50,
+    },
+    contentVisibility: {
+      videos: true,
+      playlists: true,
+      channels: true,
     },
   },
 };
@@ -27,90 +34,104 @@ function generateTagId() {
  * This function can handle:
  * - v0: An array of videos where `tags` and `dateAdded` are missing.
  * - v1: An array of videos where `tags` is an array of strings.
- * - v2: The current structured format.
+ * - v2: An object with `tags` as an array of tag objects, and videos referencing tags by ID.
+ * - v3: An object with added `playlists` and `channels` arrays.
  * @param {any} oldData - The data retrieved from storage or an imported file.
  * @returns {object} Data in the latest schema format.
  */
 export function migrateData(oldData) {
-  // Case 1: Brand new user or invalid data.
+  // Case 1: Brand new user or invalid/empty data.
   if (!oldData) {
     return DEFAULT_DATA_STRUCTURE;
   }
 
-  // Case 2: Already on the latest schema. No migration needed.
+  // Case 2: Already on the latest schema. Merge settings to be safe and return.
   if (oldData.schemaVersion && oldData.schemaVersion >= LATEST_SCHEMA_VERSION) {
-    // Merge with defaults to ensure all top-level keys exist.
-    return { ...DEFAULT_DATA_STRUCTURE, ...oldData };
-  }
-
-  // Case 3: Legacy format (v0 or v1) - data is an array of videos.
-  // This block handles both v0 and v1 seamlessly.
-  if (Array.isArray(oldData)) {
-    console.log("YT Storer: Migrating legacy data (v0/v1) to Schema v2.");
-    const legacyVideos = oldData;
-    const newTags = new Map(); // Use a map to handle case-insensitivity
-    const newVideos = [];
-
-    // First pass: Discover all unique tags and create tag objects
-    legacyVideos.forEach((video) => {
-      // V0 Compatibility: Ensure `tags` is an array before processing.
-      if (!Array.isArray(video.tags)) {
-        video.tags = [];
-      }
-
-      video.tags.forEach((tagName) => {
-        // This check handles cases where tagName might not be a string
-        if (typeof tagName !== "string" || tagName.trim() === "") return;
-
-        const lowerCaseName = tagName.toLowerCase();
-        if (!newTags.has(lowerCaseName)) {
-          newTags.set(lowerCaseName, {
-            id: generateTagId(),
-            name: tagName, // Preserve original casing
-            color: "#e2e2e2",
-          });
-        }
-      });
-    });
-
-    // Second pass: Update videos with new fields and tag IDs
-    legacyVideos.forEach((video) => {
-      const newVideo = { ...video };
-
-      // V0 Compatibility: Ensure `dateAdded` exists and is a number.
-      if (typeof newVideo.dateAdded !== "number") {
-        newVideo.dateAdded = Date.now();
-      }
-
-      // V0 Compatibility: Ensure `tags` is an array. (Already done above, but safe to re-check)
-      if (!Array.isArray(newVideo.tags)) {
-        newVideo.tags = [];
-      }
-
-      // V1 -> V2 Conversion: Replace tag names with tag IDs.
-      newVideo.tags = newVideo.tags
-        .map((tagName) => {
-          if (typeof tagName !== "string") return null;
-          const tagObj = newTags.get(tagName.toLowerCase());
-          return tagObj ? tagObj.id : null;
-        })
-        .filter((id) => id !== null); // Remove any nulls
-
-      newVideos.push(newVideo);
-    });
-
-    return {
-      ...DEFAULT_DATA_STRUCTURE,
-      videos: newVideos,
-      tags: Array.from(newTags.values()),
+    const mergedSettings = {
+      ...DEFAULT_DATA_STRUCTURE.settings,
+      ...oldData.settings,
+      contentVisibility: {
+        // Ensure new keys exist
+        ...DEFAULT_DATA_STRUCTURE.settings.contentVisibility,
+        ...(oldData.settings ? oldData.settings.contentVisibility : {}),
+      },
     };
+    return { ...DEFAULT_DATA_STRUCTURE, ...oldData, settings: mergedSettings };
   }
 
-  // Fallback for any other unexpected format.
-  console.warn(
-    "YT Storer: Unrecognized data format encountered. Resetting to default.",
-  );
-  return DEFAULT_DATA_STRUCTURE;
+  // Start the migration process. We'll modify this object step-by-step.
+  let migratedData = oldData;
+
+  // --- Step 1: Migrate legacy array (v0/v1) to a v2 object structure ---
+  if (!migratedData.schemaVersion || migratedData.schemaVersion < 2) {
+    if (Array.isArray(migratedData)) {
+      console.log(
+        "YT Storer: Migrating legacy data (v0/v1) to Schema v2 object.",
+      );
+      const legacyVideos = migratedData;
+      const newTags = new Map();
+      const newVideos = [];
+
+      // First pass: Discover all unique tags
+      legacyVideos.forEach((video) => {
+        if (!Array.isArray(video.tags)) video.tags = [];
+        video.tags.forEach((tagName) => {
+          if (typeof tagName !== "string" || tagName.trim() === "") return;
+          const lowerCaseName = tagName.toLowerCase();
+          if (!newTags.has(lowerCaseName)) {
+            newTags.set(lowerCaseName, {
+              id: generateTagId(),
+              name: tagName,
+              color: "#e2e2e2",
+            });
+          }
+        });
+      });
+
+      // Second pass: Update videos
+      legacyVideos.forEach((video) => {
+        const newVideo = { ...video };
+        if (typeof newVideo.dateAdded !== "number") {
+          newVideo.dateAdded = Date.now();
+        }
+        newVideo.tags = video.tags
+          .map((tagName) => {
+            if (typeof tagName !== "string") return null;
+            const tagObj = newTags.get(tagName.toLowerCase());
+            return tagObj ? tagObj.id : null;
+          })
+          .filter((id) => id !== null);
+        newVideos.push(newVideo);
+      });
+
+      migratedData = {
+        schemaVersion: 2, // Explicitly set the intermediate version
+        videos: newVideos,
+        tags: Array.from(newTags.values()),
+        settings: DEFAULT_DATA_STRUCTURE.settings, // Start with default settings
+      };
+    } else {
+      // If it's not an array and has no schema, it's an unknown format.
+      console.warn("YT Storer: Unrecognized legacy data format. Resetting.");
+      return DEFAULT_DATA_STRUCTURE;
+    }
+  }
+
+  // --- Step 2: Migrate from Schema v2 to Schema v3 ---
+  // This code will now correctly run for both existing v2 users AND users just migrated from v0/v1.
+  if (migratedData.schemaVersion < 3) {
+    console.log("YT Storer: Migrating data from Schema v2 to v3.");
+    migratedData.playlists = [];
+    migratedData.channels = [];
+    migratedData.settings = {
+      ...DEFAULT_DATA_STRUCTURE.settings,
+      ...migratedData.settings, // Keep existing settings
+    };
+    migratedData.schemaVersion = 3;
+  }
+
+  // --- Final Step: Return the fully migrated data ---
+  return migratedData;
 }
 
 /**
@@ -167,6 +188,24 @@ export async function addVideo(newVideo) {
   }
 }
 
+export async function addPlaylist(newPlaylist) {
+  const data = await getData();
+  const isAlreadySaved = data.playlists.some((p) => p.id === newPlaylist.id);
+  if (!isAlreadySaved) {
+    data.playlists.push(newPlaylist);
+    await setData(data);
+  }
+}
+
+export async function addChannel(newChannel) {
+  const data = await getData();
+  const isAlreadySaved = data.channels.some((c) => c.id === newChannel.id);
+  if (!isAlreadySaved) {
+    data.channels.push(newChannel);
+    await setData(data);
+  }
+}
+
 export async function updateVideo(videoId, updates) {
   const data = await getData();
   const videoIndex = data.videos.findIndex((v) => v.id === videoId);
@@ -176,10 +215,42 @@ export async function updateVideo(videoId, updates) {
   }
 }
 
+export async function updatePlaylist(playlistId, updates) {
+  const data = await getData();
+  const itemIndex = data.playlists.findIndex((p) => p.id === playlistId);
+  if (itemIndex !== -1) {
+    data.playlists[itemIndex] = { ...data.playlists[itemIndex], ...updates };
+    await setData(data);
+  }
+}
+
+export async function updateChannel(channelId, updates) {
+  const data = await getData();
+  const itemIndex = data.channels.findIndex((c) => c.id === channelId);
+  if (itemIndex !== -1) {
+    data.channels[itemIndex] = { ...data.channels[itemIndex], ...updates };
+    await setData(data);
+  }
+}
+
 export async function deleteVideosByIds(videoIds) {
   const data = await getData();
   const idsToDelete = new Set(videoIds);
   data.videos = data.videos.filter((video) => !idsToDelete.has(video.id));
+  await setData(data);
+}
+
+export async function deletePlaylistsByIds(playlistIds) {
+  const data = await getData();
+  const idsToDelete = new Set(playlistIds);
+  data.playlists = data.playlists.filter((p) => !idsToDelete.has(p.id));
+  await setData(data);
+}
+
+export async function deleteChannelsByIds(channelIds) {
+  const data = await getData();
+  const idsToDelete = new Set(channelIds);
+  data.channels = data.channels.filter((c) => !idsToDelete.has(c.id));
   await setData(data);
 }
 
@@ -233,6 +304,52 @@ export async function removeTagFromVideo(tagId, videoId) {
   const video = data.videos.find((v) => v.id === videoId);
   if (video && video.tags) {
     video.tags = video.tags.filter((tId) => tId !== tagId);
+    await setData(data);
+  }
+}
+
+export async function addTagToPlaylists(tagId, playlistIds) {
+  const data = await getData();
+  const idsToUpdate = new Set(playlistIds);
+  data.playlists.forEach((playlist) => {
+    if (idsToUpdate.has(playlist.id)) {
+      if (!playlist.tags) playlist.tags = [];
+      if (!playlist.tags.includes(tagId)) {
+        playlist.tags.push(tagId);
+      }
+    }
+  });
+  await setData(data);
+}
+
+export async function removeTagFromPlaylist(tagId, playlistId) {
+  const data = await getData();
+  const playlist = data.playlists.find((p) => p.id === playlistId);
+  if (playlist && playlist.tags) {
+    playlist.tags = playlist.tags.filter((tId) => tId !== tagId);
+    await setData(data);
+  }
+}
+
+export async function addTagToChannels(tagId, channelIds) {
+  const data = await getData();
+  const idsToUpdate = new Set(channelIds);
+  data.channels.forEach((channel) => {
+    if (idsToUpdate.has(channel.id)) {
+      if (!channel.tags) channel.tags = [];
+      if (!channel.tags.includes(tagId)) {
+        channel.tags.push(tagId);
+      }
+    }
+  });
+  await setData(data);
+}
+
+export async function removeTagFromChannel(tagId, channelId) {
+  const data = await getData();
+  const channel = data.channels.find((c) => c.id === channelId);
+  if (channel && channel.tags) {
+    channel.tags = channel.tags.filter((tId) => tId !== tagId);
     await setData(data);
   }
 }

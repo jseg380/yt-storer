@@ -6,6 +6,7 @@
     <meta charset="utf-8">
     <link rel="stylesheet" href="../shared/common.css">
     <link rel="stylesheet" href="options.css">
+    <link rel="stylesheet" href="options_tabs.css">
 </head>
 
 <body>
@@ -17,6 +18,11 @@
 
     <div class="container">
         <div id="main-view">
+            <div class="view-switcher-container">
+                <button id="view-videos-btn" class="view-tab-btn active">Videos</button>
+                <button id="view-playlists-btn" class="view-tab-btn">Playlists</button>
+                <button id="view-channels-btn" class="view-tab-btn">Channels</button>
+            </div>
             <div class="controls-header">
                 <input type="checkbox" id="select-all-checkbox" class="master-checkbox"
                     title="Select/Deselect All Visible">
@@ -174,6 +180,28 @@
                             <span>The number of videos to show on each page.</span>
                         </div>
                         <input type="number" id="items-per-page-input" min="10" max="200" step="5" class="small-input">
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>Content Visibility</h3>
+                    <div class="setting-item">
+                        <div class="setting-label">
+                            <span>Show Videos</span>
+                        </div>
+                        <input type="checkbox" id="visibility-videos-checkbox" class="toggle-switch">
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-label">
+                            <span>Show Playlists</span>
+                        </div>
+                        <input type="checkbox" id="visibility-playlists-checkbox" class="toggle-switch">
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-label">
+                            <span>Show Channels</span>
+                        </div>
+                        <input type="checkbox" id="visibility-channels-checkbox" class="toggle-switch">
                     </div>
                 </div>
 
