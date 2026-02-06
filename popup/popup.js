@@ -6,6 +6,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const searchBox = document.getElementById("search-box");
   const manageBtn = document.getElementById("manage-btn");
 
+  searchBox.focus();
+
   // View switching elements
   const viewBtns = {
     videos: document.getElementById("view-videos"),
