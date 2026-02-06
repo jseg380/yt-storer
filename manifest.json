@@ -34,6 +34,13 @@
     "page": "options/options.html",
     "open_in_tab": true
   },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+L"
+      }
+    }
+  },
   "browser_specific_settings": {
     "gecko": {
       "id": "{54c81a5f-c929-4bb1-8ac8-e900f192233d}",
