@@ -9,12 +9,14 @@ const KINDS = ["tags", "videos", "playlists", "channels"];
  * the web app's /api/pair/redeem endpoint and stores it locally.
  * @param {string} apiBaseUrl - e.g. "https://your-app.vercel.app"
  * @param {string} code
+ * @param {string} [deviceId] - stable per-install id, used for the device list shown in the web app
+ * @param {string} [label] - human-readable device label (e.g. "MacIntel · Firefox")
  */
-export async function pairWithCode(apiBaseUrl, code) {
+export async function pairWithCode(apiBaseUrl, code, deviceId, label) {
   const response = await fetch(`${apiBaseUrl.replace(/\/$/, "")}/api/pair/redeem`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code }),
+    body: JSON.stringify({ code, deviceId, label }),
   });
   const result = await response.json();
   if (!response.ok || !result.ok) {
@@ -27,7 +29,38 @@ export async function pairWithCode(apiBaseUrl, code) {
   });
 }
 
-export async function disconnect() {
+/**
+ * Updates this device's last-synced timestamp in the web app's device list.
+ * Best-effort — a failure here shouldn't fail the sync it's reporting on.
+ * @param {string} [deviceId]
+ */
+export async function reportSynced(deviceId) {
+  if (!deviceId) return;
+  try {
+    await authedFetch(`/rest/v1/sync_devices?device_id=eq.${encodeURIComponent(deviceId)}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ last_synced_at: new Date().toISOString() }),
+    });
+  } catch {
+    // Non-fatal: the sync itself already succeeded.
+  }
+}
+
+/**
+ * @param {string} [deviceId] - if provided, removes this device from the
+ * web app's connected-devices list before clearing local credentials.
+ */
+export async function disconnect(deviceId) {
+  if (deviceId) {
+    try {
+      await authedFetch(`/rest/v1/sync_devices?device_id=eq.${encodeURIComponent(deviceId)}`, {
+        method: "DELETE",
+      });
+    } catch {
+      // Best-effort — proceed with local disconnect regardless.
+    }
+  }
   await clearAuth();
   await browser.storage.local.remove(OUTBOX_KEY);
 }

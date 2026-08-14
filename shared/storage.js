@@ -24,6 +24,8 @@ const DEFAULT_DATA_STRUCTURE = {
       enabled: false,
       lastSyncedAt: null,
       apiBaseUrl: null,
+      autoSync: true,
+      deviceId: null,
     },
   },
 };

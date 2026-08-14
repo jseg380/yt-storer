@@ -176,10 +176,20 @@
                             <button id="sync-connect-btn" class="action-btn">Connect</button>
                         </div>
                     </div>
-                    <div id="sync-connected" class="setting-item hidden">
-                        <span id="sync-connected-status">Connected.</span>
-                        <button id="sync-now-btn" class="action-btn">Sync now</button>
-                        <button id="sync-disconnect-btn" class="action-btn">Disconnect</button>
+                    <div id="sync-connected" class="hidden">
+                        <div class="setting-item">
+                            <span id="sync-connected-status">Connected.</span>
+                            <button id="sync-now-btn" class="action-btn">Sync now</button>
+                            <button id="sync-disconnect-btn" class="action-btn">Disconnect</button>
+                        </div>
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <label for="sync-autosync-checkbox">Sync automatically</label>
+                                <span>Checks for changes every few minutes in the background. Turn this off
+                                    and use "Sync now" manually if background activity causes lag.</span>
+                            </div>
+                            <input type="checkbox" id="sync-autosync-checkbox" class="toggle-switch">
+                        </div>
                     </div>
                 </div>
 

@@ -3,8 +3,8 @@ import * as sync from "./shared/sync.js";
 
 const SYNC_ALARM_NAME = "yt-storer-sync";
 
-async function ensureSyncAlarm(enabled) {
-  if (enabled) {
+async function ensureSyncAlarm(autoSyncOn) {
+  if (autoSyncOn) {
     const existing = await browser.alarms.get(SYNC_ALARM_NAME);
     if (!existing) browser.alarms.create(SYNC_ALARM_NAME, { periodInMinutes: 5 });
   } else {
@@ -12,16 +12,7 @@ async function ensureSyncAlarm(enabled) {
   }
 }
 
-// Keep the alarm's existence in sync with the enabled flag, reacting the
-// same way every other surface in this extension reacts to data changes.
-browser.storage.onChanged.addListener((changes, area) => {
-  if (area === "local" && changes.ytStorerData) {
-    ensureSyncAlarm(Boolean(changes.ytStorerData.newValue?.settings?.sync?.enabled));
-  }
-});
-
-browser.alarms.onAlarm.addListener(async (alarm) => {
-  if (alarm.name !== SYNC_ALARM_NAME) return;
+async function performSync() {
   try {
     await sync.flushOutbox();
     const data = await storage.getData();
@@ -32,14 +23,38 @@ browser.alarms.onAlarm.addListener(async (alarm) => {
     const remoteChanges = await sync.pullRemoteChanges(since);
     await storage.applyRemoteChanges(remoteChanges);
     await storage.updateSyncSettings({ lastSyncedAt: Date.now() });
+    await sync.reportSynced(data.settings.sync.deviceId);
   } catch (error) {
     console.error("YT Storer: Background sync failed.", error);
   }
+}
+
+// Keep the alarm's existence in sync with enabled+autoSync, reacting the
+// same way every other surface in this extension reacts to data changes.
+// autoSync is a separate opt-out from "connected at all" — someone can stay
+// paired and use only the manual "Sync now" button if periodic background
+// activity isn't something they want.
+browser.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes.ytStorerData) {
+    const syncSettings = changes.ytStorerData.newValue?.settings?.sync;
+    ensureSyncAlarm(Boolean(syncSettings?.enabled && syncSettings?.autoSync));
+  }
 });
 
-// Re-establish the alarm on startup/reload in case it didn't survive
-// (storage.onChanged won't fire here since nothing actually changed).
-storage.getData().then((data) => ensureSyncAlarm(Boolean(data.settings.sync?.enabled)));
+browser.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === SYNC_ALARM_NAME) performSync();
+});
+
+// On browser startup (and extension install/reload, which re-runs this
+// module the same way): re-establish the alarm, since storage.onChanged
+// won't fire here as nothing actually changed, and get an immediate sync in
+// rather than waiting up to 5 minutes for the first alarm tick.
+storage.getData().then((data) => {
+  const syncSettings = data.settings.sync ?? {};
+  const autoSyncOn = Boolean(syncSettings.enabled && syncSettings.autoSync);
+  ensureSyncAlarm(autoSyncOn);
+  if (autoSyncOn) performSync();
+});
 
 // Define IDs for our context menu items
 const CONTEXT_MENU_ID_PAGE_VIDEO = "SAVE_YT_VIDEO_PAGE";

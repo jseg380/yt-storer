@@ -66,6 +66,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const syncConnectedStatus = document.getElementById("sync-connected-status");
   const syncNowBtn = document.getElementById("sync-now-btn");
   const syncDisconnectBtn = document.getElementById("sync-disconnect-btn");
+  const syncAutoSyncCheckbox = document.getElementById("sync-autosync-checkbox");
 
   // View Switcher Buttons
   const viewBtns = {
@@ -730,7 +731,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderSyncSection() {
     const syncSettings =
-      appState.settings.sync || { enabled: false, lastSyncedAt: null, apiBaseUrl: null };
+      appState.settings.sync || { enabled: false, lastSyncedAt: null, apiBaseUrl: null, autoSync: true };
     if (syncSettings.apiBaseUrl && !syncApiUrlInput.value) {
       syncApiUrlInput.value = syncSettings.apiBaseUrl;
     }
@@ -740,7 +741,18 @@ document.addEventListener("DOMContentLoaded", () => {
       syncConnectedStatus.textContent = syncSettings.lastSyncedAt
         ? `Connected. Last synced ${new Date(syncSettings.lastSyncedAt).toLocaleString()}.`
         : "Connected. Not synced yet.";
+      syncAutoSyncCheckbox.checked = syncSettings.autoSync !== false;
     }
+  }
+
+  function getOrCreateDeviceId() {
+    const existing = appState.settings.sync && appState.settings.sync.deviceId;
+    return existing || crypto.randomUUID();
+  }
+
+  function currentDeviceLabel() {
+    const platform = (navigator.platform || navigator.userAgentData?.platform || "Unknown").trim();
+    return `${platform} · Firefox`;
   }
 
   async function pushAllLocalData() {
@@ -760,6 +772,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const changes = await sync.pullRemoteChanges(since);
     await storage.applyRemoteChanges(changes);
     await storage.updateSyncSettings({ lastSyncedAt: Date.now() });
+    await sync.reportSynced(data.settings.sync.deviceId);
   }
 
   syncConnectBtn.addEventListener("click", async () => {
@@ -781,8 +794,9 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      await sync.pairWithCode(apiBaseUrl, code);
-      await storage.updateSyncSettings({ enabled: true, apiBaseUrl });
+      const deviceId = getOrCreateDeviceId();
+      await sync.pairWithCode(apiBaseUrl, code, deviceId, currentDeviceLabel());
+      await storage.updateSyncSettings({ enabled: true, apiBaseUrl, deviceId });
 
       // First connection: push everything local, then pull anything that
       // only exists on the server (e.g. imported there, or from another device).
@@ -819,8 +833,12 @@ document.addEventListener("DOMContentLoaded", () => {
       )
     )
       return;
-    await sync.disconnect();
+    await sync.disconnect(appState.settings.sync && appState.settings.sync.deviceId);
     await storage.updateSyncSettings({ enabled: false });
+  });
+
+  syncAutoSyncCheckbox.addEventListener("change", (e) => {
+    storage.updateSyncSettings({ autoSync: e.target.checked });
   });
 
   // ===================================================================
