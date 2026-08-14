@@ -15,12 +15,17 @@
     "storage",
     "activeTab",
     "menus",
-    "scripting"
+    "scripting",
+    "alarms"
   ],
   "host_permissions": [
     "*://*.youtube.com/*",
     "*://youtube.com/*",
     "*://youtu.be/*"
+  ],
+  "optional_host_permissions": [
+    "https://dzibcfdmkryloosdizow.supabase.co/*",
+    "*://*.null-relay.com/*"
   ],
   "action": {
     "default_icon": {
