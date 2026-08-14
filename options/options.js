@@ -1,5 +1,7 @@
 import * as storage from "../shared/storage.js";
 import { normalizeText, formatCompactTimestamp } from "../shared/utils.js";
+import * as sync from "../shared/sync.js";
+import { SUPABASE_URL } from "../shared/config.js";
 
 document.addEventListener("DOMContentLoaded", () => {
   // --- DOM Element References ---
@@ -55,6 +57,15 @@ document.addEventListener("DOMContentLoaded", () => {
   );
   const randomVideoBtn = document.getElementById("random-video-btn");
   const tagManagementList = document.getElementById("tag-management-list");
+  const syncConnectForm = document.getElementById("sync-connect-form");
+  const syncApiUrlInput = document.getElementById("sync-api-url");
+  const syncCodeInput = document.getElementById("sync-code-input");
+  const syncConnectBtn = document.getElementById("sync-connect-btn");
+  const syncConnectStatus = document.getElementById("sync-connect-status");
+  const syncConnectedDiv = document.getElementById("sync-connected");
+  const syncConnectedStatus = document.getElementById("sync-connected-status");
+  const syncNowBtn = document.getElementById("sync-now-btn");
+  const syncDisconnectBtn = document.getElementById("sync-disconnect-btn");
 
   // View Switcher Buttons
   const viewBtns = {
@@ -714,6 +725,105 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ===================================================================
+  // CLOUD SYNC
+  // ===================================================================
+
+  function renderSyncSection() {
+    const syncSettings =
+      appState.settings.sync || { enabled: false, lastSyncedAt: null, apiBaseUrl: null };
+    if (syncSettings.apiBaseUrl && !syncApiUrlInput.value) {
+      syncApiUrlInput.value = syncSettings.apiBaseUrl;
+    }
+    syncConnectForm.classList.toggle("hidden", syncSettings.enabled);
+    syncConnectedDiv.classList.toggle("hidden", !syncSettings.enabled);
+    if (syncSettings.enabled) {
+      syncConnectedStatus.textContent = syncSettings.lastSyncedAt
+        ? `Connected. Last synced ${new Date(syncSettings.lastSyncedAt).toLocaleString()}.`
+        : "Connected. Not synced yet.";
+    }
+  }
+
+  async function pushAllLocalData() {
+    const data = await storage.getData();
+    for (const tag of data.tags) await sync.queueUpsert("tags", tag);
+    for (const video of data.videos) await sync.queueUpsert("videos", video);
+    for (const playlist of data.playlists) await sync.queueUpsert("playlists", playlist);
+    for (const channel of data.channels) await sync.queueUpsert("channels", channel);
+    await sync.flushOutbox();
+  }
+
+  async function pullAndUpdateStatus() {
+    const data = await storage.getData();
+    const since = data.settings.sync.lastSyncedAt
+      ? new Date(data.settings.sync.lastSyncedAt).toISOString()
+      : null;
+    const changes = await sync.pullRemoteChanges(since);
+    await storage.applyRemoteChanges(changes);
+    await storage.updateSyncSettings({ lastSyncedAt: Date.now() });
+  }
+
+  syncConnectBtn.addEventListener("click", async () => {
+    const apiBaseUrl = syncApiUrlInput.value.trim().replace(/\/$/, "");
+    const code = syncCodeInput.value.trim();
+    if (!apiBaseUrl || !code) {
+      syncConnectStatus.textContent = "Enter the web app URL and pairing code.";
+      return;
+    }
+
+    syncConnectBtn.disabled = true;
+    syncConnectStatus.textContent = "Connecting…";
+    try {
+      const granted = await browser.permissions.request({
+        origins: [`${apiBaseUrl}/*`, `${SUPABASE_URL}/*`],
+      });
+      if (!granted) {
+        syncConnectStatus.textContent = "Permission denied — can't connect without it.";
+        return;
+      }
+
+      await sync.pairWithCode(apiBaseUrl, code);
+      await storage.updateSyncSettings({ enabled: true, apiBaseUrl });
+
+      // First connection: push everything local, then pull anything that
+      // only exists on the server (e.g. imported there, or from another device).
+      await pushAllLocalData();
+      await pullAndUpdateStatus();
+
+      syncCodeInput.value = "";
+      syncConnectStatus.textContent = "";
+    } catch (error) {
+      console.error("YT Storer: Failed to connect sync.", error);
+      syncConnectStatus.textContent = error.message || "Failed to connect.";
+    } finally {
+      syncConnectBtn.disabled = false;
+    }
+  });
+
+  syncNowBtn.addEventListener("click", async () => {
+    syncNowBtn.disabled = true;
+    try {
+      await sync.flushOutbox();
+      await pullAndUpdateStatus();
+    } catch (error) {
+      console.error("YT Storer: Sync failed.", error);
+      alert(error.message || "Sync failed.");
+    } finally {
+      syncNowBtn.disabled = false;
+    }
+  });
+
+  syncDisconnectBtn.addEventListener("click", async () => {
+    if (
+      !confirm(
+        "Disconnect from your account? Your local data stays, but it will stop syncing.",
+      )
+    )
+      return;
+    await sync.disconnect();
+    await storage.updateSyncSettings({ enabled: false });
+  });
+
+  // ===================================================================
   // DATA ACTIONS & EVENT HANDLERS
   // ===================================================================
 
@@ -778,6 +888,7 @@ document.addEventListener("DOMContentLoaded", () => {
       renderAll();
     }
     renderTagManagementList();
+    renderSyncSection();
   }
 
   browser.storage.onChanged.addListener((changes, area) => {

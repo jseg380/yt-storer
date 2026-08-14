@@ -156,6 +156,34 @@
                 </div>
 
                 <div class="settings-section">
+                    <h3>Cloud Sync</h3>
+                    <div class="setting-item">
+                        <span>Connect this extension to your YT Storer account to sync your library with the web
+                            app. Everything keeps working offline if you skip this.</span>
+                    </div>
+                    <div id="sync-connect-form">
+                        <div class="form-group">
+                            <label for="sync-api-url">Web app URL</label>
+                            <input type="text" id="sync-api-url" placeholder="https://your-app.vercel.app">
+                        </div>
+                        <div class="form-group">
+                            <label for="sync-code-input">Pairing code</label>
+                            <input type="text" id="sync-code-input"
+                                placeholder="From the web app's Connect Extension page">
+                        </div>
+                        <div class="setting-item">
+                            <span id="sync-connect-status"></span>
+                            <button id="sync-connect-btn" class="action-btn">Connect</button>
+                        </div>
+                    </div>
+                    <div id="sync-connected" class="setting-item hidden">
+                        <span id="sync-connected-status">Connected.</span>
+                        <button id="sync-now-btn" class="action-btn">Sync now</button>
+                        <button id="sync-disconnect-btn" class="action-btn">Disconnect</button>
+                    </div>
+                </div>
+
+                <div class="settings-section">
                     <h3>Tag Management</h3>
                     <div class="setting-item">
                         <span>Click a tag to edit its name and color.</span>
