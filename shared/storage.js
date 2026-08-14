@@ -1,5 +1,7 @@
+import * as sync from "./sync.js";
+
 const DATA_KEY = "ytStorerData";
-const LATEST_SCHEMA_VERSION = 3;
+const LATEST_SCHEMA_VERSION = 4;
 
 // The ideal structure of our data
 const DEFAULT_DATA_STRUCTURE = {
@@ -18,6 +20,11 @@ const DEFAULT_DATA_STRUCTURE = {
       playlists: true,
       channels: true,
     },
+    sync: {
+      enabled: false,
+      lastSyncedAt: null,
+      apiBaseUrl: null,
+    },
   },
 };
 
@@ -30,12 +37,13 @@ function generateTagId() {
 }
 
 /**
- * Migrates data from any older schema to the latest version (v2).
+ * Migrates data from any older schema to the latest version (v4).
  * This function can handle:
  * - v0: An array of videos where `tags` and `dateAdded` are missing.
  * - v1: An array of videos where `tags` is an array of strings.
  * - v2: An object with `tags` as an array of tag objects, and videos referencing tags by ID.
  * - v3: An object with added `playlists` and `channels` arrays.
+ * - v4: Adds `updatedAt` to every item/tag and a `settings.sync` block, for cloud sync.
  * @param {any} oldData - The data retrieved from storage or an imported file.
  * @returns {object} Data in the latest schema format.
  */
@@ -54,6 +62,10 @@ export function migrateData(oldData) {
         // Ensure new keys exist
         ...DEFAULT_DATA_STRUCTURE.settings.contentVisibility,
         ...(oldData.settings ? oldData.settings.contentVisibility : {}),
+      },
+      sync: {
+        ...DEFAULT_DATA_STRUCTURE.settings.sync,
+        ...(oldData.settings ? oldData.settings.sync : {}),
       },
     };
     return { ...DEFAULT_DATA_STRUCTURE, ...oldData, settings: mergedSettings };
@@ -130,6 +142,33 @@ export function migrateData(oldData) {
     migratedData.schemaVersion = 3;
   }
 
+  // --- Step 3: Migrate from Schema v3 to Schema v4 ---
+  // Adds `updatedAt` to every item/tag (needed for last-write-wins sync)
+  // and a `settings.sync` block (opt-in cloud sync, off by default).
+  if (migratedData.schemaVersion < 4) {
+    console.log("YT Storer: Migrating data from Schema v3 to v4.");
+    for (const kind of ["videos", "playlists", "channels"]) {
+      for (const item of migratedData[kind] ?? []) {
+        if (typeof item.updatedAt !== "number") {
+          item.updatedAt = item.dateAdded ?? Date.now();
+        }
+      }
+    }
+    for (const tag of migratedData.tags ?? []) {
+      if (typeof tag.updatedAt !== "number") {
+        tag.updatedAt = Date.now();
+      }
+    }
+    migratedData.settings = {
+      ...migratedData.settings,
+      sync: {
+        ...DEFAULT_DATA_STRUCTURE.settings.sync,
+        ...migratedData.settings?.sync,
+      },
+    };
+    migratedData.schemaVersion = 4;
+  }
+
   // --- Final Step: Return the fully migrated data ---
   return migratedData;
 }
@@ -177,14 +216,25 @@ export async function setData(data) {
   await browser.storage.local.set({ [DATA_KEY]: data });
 }
 
+function stamp(item) {
+  item.updatedAt = Date.now();
+  return item;
+}
+
+function syncEnabled(data) {
+  return Boolean(data.settings.sync?.enabled);
+}
+
 // --- High-level action functions ---
 
 export async function addVideo(newVideo) {
   const data = await getData();
   const isAlreadySaved = data.videos.some((video) => video.id === newVideo.id);
   if (!isAlreadySaved) {
+    stamp(newVideo);
     data.videos.push(newVideo);
     await setData(data);
+    if (syncEnabled(data)) await sync.queueUpsert("videos", newVideo);
   }
 }
 
@@ -192,8 +242,10 @@ export async function addPlaylist(newPlaylist) {
   const data = await getData();
   const isAlreadySaved = data.playlists.some((p) => p.id === newPlaylist.id);
   if (!isAlreadySaved) {
+    stamp(newPlaylist);
     data.playlists.push(newPlaylist);
     await setData(data);
+    if (syncEnabled(data)) await sync.queueUpsert("playlists", newPlaylist);
   }
 }
 
@@ -201,8 +253,10 @@ export async function addChannel(newChannel) {
   const data = await getData();
   const isAlreadySaved = data.channels.some((c) => c.id === newChannel.id);
   if (!isAlreadySaved) {
+    stamp(newChannel);
     data.channels.push(newChannel);
     await setData(data);
+    if (syncEnabled(data)) await sync.queueUpsert("channels", newChannel);
   }
 }
 
@@ -210,8 +264,9 @@ export async function updateVideo(videoId, updates) {
   const data = await getData();
   const videoIndex = data.videos.findIndex((v) => v.id === videoId);
   if (videoIndex !== -1) {
-    data.videos[videoIndex] = { ...data.videos[videoIndex], ...updates };
+    data.videos[videoIndex] = stamp({ ...data.videos[videoIndex], ...updates });
     await setData(data);
+    if (syncEnabled(data)) await sync.queueUpsert("videos", data.videos[videoIndex]);
   }
 }
 
@@ -219,8 +274,9 @@ export async function updatePlaylist(playlistId, updates) {
   const data = await getData();
   const itemIndex = data.playlists.findIndex((p) => p.id === playlistId);
   if (itemIndex !== -1) {
-    data.playlists[itemIndex] = { ...data.playlists[itemIndex], ...updates };
+    data.playlists[itemIndex] = stamp({ ...data.playlists[itemIndex], ...updates });
     await setData(data);
+    if (syncEnabled(data)) await sync.queueUpsert("playlists", data.playlists[itemIndex]);
   }
 }
 
@@ -228,8 +284,9 @@ export async function updateChannel(channelId, updates) {
   const data = await getData();
   const itemIndex = data.channels.findIndex((c) => c.id === channelId);
   if (itemIndex !== -1) {
-    data.channels[itemIndex] = { ...data.channels[itemIndex], ...updates };
+    data.channels[itemIndex] = stamp({ ...data.channels[itemIndex], ...updates });
     await setData(data);
+    if (syncEnabled(data)) await sync.queueUpsert("channels", data.channels[itemIndex]);
   }
 }
 
@@ -238,6 +295,9 @@ export async function deleteVideosByIds(videoIds) {
   const idsToDelete = new Set(videoIds);
   data.videos = data.videos.filter((video) => !idsToDelete.has(video.id));
   await setData(data);
+  if (syncEnabled(data)) {
+    for (const id of idsToDelete) await sync.queueDelete("videos", id);
+  }
 }
 
 export async function deletePlaylistsByIds(playlistIds) {
@@ -245,6 +305,9 @@ export async function deletePlaylistsByIds(playlistIds) {
   const idsToDelete = new Set(playlistIds);
   data.playlists = data.playlists.filter((p) => !idsToDelete.has(p.id));
   await setData(data);
+  if (syncEnabled(data)) {
+    for (const id of idsToDelete) await sync.queueDelete("playlists", id);
+  }
 }
 
 export async function deleteChannelsByIds(channelIds) {
@@ -252,6 +315,9 @@ export async function deleteChannelsByIds(channelIds) {
   const idsToDelete = new Set(channelIds);
   data.channels = data.channels.filter((c) => !idsToDelete.has(c.id));
   await setData(data);
+  if (syncEnabled(data)) {
+    for (const id of idsToDelete) await sync.queueDelete("channels", id);
+  }
 }
 
 export async function createTag(tagName) {
@@ -266,13 +332,14 @@ export async function createTag(tagName) {
     return existingTag; // Return the existing tag
   }
 
-  const newTag = {
+  const newTag = stamp({
     id: generateTagId(),
     name: tagName, // Preserve user's casing
     color: "#e2e2e2",
-  };
+  });
   data.tags.push(newTag);
   await setData(data);
+  if (syncEnabled(data)) await sync.queueUpsert("tags", newTag);
   return newTag;
 }
 
@@ -280,23 +347,30 @@ export async function updateTag(tagId, updates) {
   const data = await getData();
   const tagIndex = data.tags.findIndex((t) => t.id === tagId);
   if (tagIndex !== -1) {
-    data.tags[tagIndex] = { ...data.tags[tagIndex], ...updates };
+    data.tags[tagIndex] = stamp({ ...data.tags[tagIndex], ...updates });
     await setData(data);
+    if (syncEnabled(data)) await sync.queueUpsert("tags", data.tags[tagIndex]);
   }
 }
 
 export async function addTagToVideos(tagId, videoIds) {
   const data = await getData();
   const idsToUpdate = new Set(videoIds);
+  const touched = [];
   data.videos.forEach((video) => {
     if (idsToUpdate.has(video.id)) {
       if (!video.tags) video.tags = [];
       if (!video.tags.includes(tagId)) {
         video.tags.push(tagId);
+        stamp(video);
+        touched.push(video);
       }
     }
   });
   await setData(data);
+  if (syncEnabled(data)) {
+    for (const video of touched) await sync.queueUpsert("videos", video);
+  }
 }
 
 export async function removeTagFromVideo(tagId, videoId) {
@@ -304,22 +378,30 @@ export async function removeTagFromVideo(tagId, videoId) {
   const video = data.videos.find((v) => v.id === videoId);
   if (video && video.tags) {
     video.tags = video.tags.filter((tId) => tId !== tagId);
+    stamp(video);
     await setData(data);
+    if (syncEnabled(data)) await sync.queueUpsert("videos", video);
   }
 }
 
 export async function addTagToPlaylists(tagId, playlistIds) {
   const data = await getData();
   const idsToUpdate = new Set(playlistIds);
+  const touched = [];
   data.playlists.forEach((playlist) => {
     if (idsToUpdate.has(playlist.id)) {
       if (!playlist.tags) playlist.tags = [];
       if (!playlist.tags.includes(tagId)) {
         playlist.tags.push(tagId);
+        stamp(playlist);
+        touched.push(playlist);
       }
     }
   });
   await setData(data);
+  if (syncEnabled(data)) {
+    for (const playlist of touched) await sync.queueUpsert("playlists", playlist);
+  }
 }
 
 export async function removeTagFromPlaylist(tagId, playlistId) {
@@ -327,22 +409,30 @@ export async function removeTagFromPlaylist(tagId, playlistId) {
   const playlist = data.playlists.find((p) => p.id === playlistId);
   if (playlist && playlist.tags) {
     playlist.tags = playlist.tags.filter((tId) => tId !== tagId);
+    stamp(playlist);
     await setData(data);
+    if (syncEnabled(data)) await sync.queueUpsert("playlists", playlist);
   }
 }
 
 export async function addTagToChannels(tagId, channelIds) {
   const data = await getData();
   const idsToUpdate = new Set(channelIds);
+  const touched = [];
   data.channels.forEach((channel) => {
     if (idsToUpdate.has(channel.id)) {
       if (!channel.tags) channel.tags = [];
       if (!channel.tags.includes(tagId)) {
         channel.tags.push(tagId);
+        stamp(channel);
+        touched.push(channel);
       }
     }
   });
   await setData(data);
+  if (syncEnabled(data)) {
+    for (const channel of touched) await sync.queueUpsert("channels", channel);
+  }
 }
 
 export async function removeTagFromChannel(tagId, channelId) {
@@ -350,12 +440,81 @@ export async function removeTagFromChannel(tagId, channelId) {
   const channel = data.channels.find((c) => c.id === channelId);
   if (channel && channel.tags) {
     channel.tags = channel.tags.filter((tId) => tId !== tagId);
+    stamp(channel);
     await setData(data);
+    if (syncEnabled(data)) await sync.queueUpsert("channels", channel);
   }
 }
 
 export async function updateSettings(newSettings) {
   const data = await getData();
-  data.settings = newSettings;
+  // Merge (not replace) so this doesn't clobber settings.sync, which this
+  // function's caller (the pagination/visibility form) doesn't know about.
+  data.settings = { ...data.settings, ...newSettings };
   await setData(data);
+}
+
+/**
+ * Merges rows pulled from the server (via sync.pullRemoteChanges) into local
+ * storage. Last-write-wins by comparing each row's server `updated_at`
+ * against the local item's `updatedAt`; a server `deleted_at` removes the
+ * item locally regardless of local timestamps, since tombstones are
+ * authoritative once synced.
+ * @param {{videos: any[], playlists: any[], channels: any[], tags: any[]}} changes
+ */
+export async function applyRemoteChanges(changes) {
+  const data = await getData();
+
+  for (const row of changes.tags ?? []) {
+    const idx = data.tags.findIndex((t) => t.id === row.source_id);
+    if (row.deleted_at) {
+      if (idx !== -1) data.tags.splice(idx, 1);
+      continue;
+    }
+    const remoteUpdatedAt = new Date(row.updated_at).getTime();
+    const localUpdatedAt = idx !== -1 ? data.tags[idx].updatedAt ?? 0 : 0;
+    if (remoteUpdatedAt <= localUpdatedAt) continue;
+    const merged = { id: row.source_id, name: row.name, color: row.color, updatedAt: remoteUpdatedAt };
+    if (idx !== -1) data.tags[idx] = merged;
+    else data.tags.push(merged);
+  }
+
+  for (const kind of ["videos", "playlists", "channels"]) {
+    for (const row of changes[kind] ?? []) {
+      const list = data[kind];
+      const idx = list.findIndex((item) => item.id === row.source_id);
+      if (row.deleted_at) {
+        if (idx !== -1) list.splice(idx, 1);
+        continue;
+      }
+      const remoteUpdatedAt = new Date(row.updated_at).getTime();
+      const localUpdatedAt = idx !== -1 ? list[idx].updatedAt ?? 0 : 0;
+      if (remoteUpdatedAt <= localUpdatedAt) continue;
+      const merged = {
+        id: row.source_id,
+        url: row.url,
+        cleanUrl: row.clean_url,
+        title: row.title,
+        dateAdded: new Date(row.date_added).getTime(),
+        tags: row.tags ?? [],
+        updatedAt: remoteUpdatedAt,
+      };
+      if (idx !== -1) list[idx] = merged;
+      else list.push(merged);
+    }
+  }
+
+  await setData(data);
+}
+
+/**
+ * Updates just the `settings.sync` block (enabled flag, last-synced
+ * timestamp, connected API URL) without touching the rest of settings.
+ * @param {Partial<{enabled: boolean, lastSyncedAt: number|null, apiBaseUrl: string|null}>} patch
+ */
+export async function updateSyncSettings(patch) {
+  const data = await getData();
+  data.settings.sync = { ...data.settings.sync, ...patch };
+  await setData(data);
+  return data.settings.sync;
 }
